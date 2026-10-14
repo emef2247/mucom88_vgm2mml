@@ -356,3 +356,10 @@ python scripts/batch_vgm_to_mgs.py tests/fixtures/local_only/opll --outdir outpu
 
 OPLLはリズムを使用する曲では6音＋リズム（`#opll_mode 1`）、
 リズムOFFの曲では9音（`#opll_mode 0`）を出力します。
+
+## Syntax reference scope
+
+- [MGSDRV syntax reference](https://p.gigamix.jp/mgsdrv/MGSDR320.TXT)
+- [MGSDRV syntax reference](https://z80.msx.click/index.php?title=MGSDRV_MML_11_JP)
+
+These are MGSDRV compatibility references, not MUCOM88 syntax specifications.

@@ -1,158 +1,85 @@
-> Current implementation (2026-10-14): default YM2608 -> musical MUC with
-> native DAT/ADPCM-B banks, batch MUB compilation and scoped native FM checks.
-> Source gates and shared structural processing remain separate from target
-> timing/commands. See mucom_musical_projection.md for support and limits;
-> inherited MDX constraints do not define YM2608 target rules.
-
-<!-- Adapted from the supplied x68k_vgm2mml project_knowledge.md.
-Stable common principles retained; target-specific MDX rules adapted or removed.
-Document references are lookup candidates, not verified repository inventory. -->
-
 # VGM → Musical Segments → Structured MUCOM88 MML
 
 ## Project Knowledge & Design Principles
 
-This document records **stable project principles and durable domain
-knowledge** for `emef2247/mucom88_vgm2mml`.
+This document records enduring principles for `mucom88_vgm2mml`, inherited
+where applicable from `x68k_vgm2mml` and `msx_vgm2mml`. It is a guide to
+conversion boundaries, not a complete implementation inventory.
 
-Keep this file small enough to read before changing conversion behavior.
-Implementation history, measurements, fixture-specific results, rejected
-experiments, and dated observations belong in `field_notes/` or focused
-documents under `docs/`.
+Current support, compiler/runtime profiles and constraints are in
+[MUCOM musical projection](mucom_musical_projection.md). Focused source
+specifications and normalization contracts are linked from the relevant
+sections below. Presence of copied modules is not proof of connected support.
 
-Not every statement is a formal specification. Distinguish:
+Distinguish confirmed specifications, implementation decisions, measurements,
+hypotheses and unresolved questions. Do not promote a fixture observation,
+test expectation or experimental heuristic to a project invariant.
 
-* confirmed facts / specifications
-* implementation decisions
-* measurements
-* hypotheses
-* unresolved questions
-
-Do not silently promote a hypothesis, test expectation, or
-fixture-specific observation into a project invariant.
-
-Export statistics must separate generated artifacts, encoded-byte identity,
-projected frequency/timing checks and native load/playback/ending/display.
-Raw Key-On/Off requests, operator edges and compiled MUB note/hold counts are
-different measurements. Do not combine them into an unsupported fidelity
-percentage; explicitly label independent comparisons not yet performed.
+Keep implementation history and measurements in existing external field notes;
+keep this file small enough to read before changing conversion behavior.
 
 ---
 
 # 1. Project Goal
 
-`mucom88_vgm2mml` converts VGM sound-chip data into human-readable,
-editable, and structurally meaningful musical representations.
+`mucom88_vgm2mml` reconstructs inspectable, editable and structurally
+meaningful musical representations from VGM sound-chip data.
 
 **Source-derived Musical Segments are the primary deliverable. Musical
-MUCOM88 MML is an output of that analysis, not the definition of it.**
-This principle is shared with `msx_vgm2mml` and `x68k_vgm2mml`.
+MUCOM88 MML is an output of that analysis, not its definition.** This is
+shared with `msx_vgm2mml` and `x68k_vgm2mml`.
 
-The default output is **musical MUCOM88 MML (`.muc`) for YM2608/OPNA**,
-with required PCM representations/assets. The default native route is:
+The default native route is:
 
 ```text
-OPNA / YM2608 VGM
-        ↓
-Native OPNA Analysis
-        ↓
-Musical Segments
-        ↓
-Musical Interpretation / Structural Analysis
-        ↓
-YM2608 Target Projection
-        ↓
-MUCOM88 MML + required PCM assets
+YM2608 VGM → Native State / Events → Segments / PCM IR
+  → Musical interpretation / Structural analysis
+  → YM2608 target projection → Musical MUC / required PCM assets
 ```
 
 Source and target are independent axes. Retain inherited OPLL, OPM,
-PSG/SSG, SCC and MSM6258 source readers and Segment/PCM analysis.
-Their presence does not prove that their MUCOM88 projection is implemented.
-Do not redefine the architecture as OPNA-only because OPNA is the first
-native route. Diagnose unsupported source-to-target combinations explicitly.
+PSG/SSG, SCC and MSM6258 analysis; their presence does not prove completed
+MUCOM88 projection. OPNA being the first native route does not make the
+architecture OPNA-only. Diagnose unsupported source-to-target combinations.
 
-Actual VGM command usage determines source selection. An unused clock
-is not a source-selection request. Diagnose unsupported active chips,
-combinations and streams rather than silently omitting them. Keep inactive
-compatibility initialization handling explicit in the source inventory.
+Actual VGM command usage determines source selection. An unused clock is
+not a routing request. Retain inactive compatibility initialization in the
+inventory; diagnose unsupported active chips, combinations and streams.
 
-Channel allocation, voice conversion and capacity exclusions are YM2608
-target constraints. Retain source evidence and allocation diagnostics;
-never rewrite source Segments. Preserve native clocks, SSG prescaler evidence
-and event/sample order before target projection.
+Channel allocation, voice conversion and capacity exclusions belong to the
+target. Preserve clocks, prescalers, event/sample order and source evidence.
 
-Canonical conversion produces musical MUC and required PCM representations
-or assets. Compiler-specific bank packaging and MUB compilation are later
-steps. PCM IR alone is not a bound, compilable bank. A matching filename stem
-does not establish ownership of adjacent MUB/PCM reference files. Remove
-previous generated assets only when recorded ownership, saved path and
-content identity match; preserve unrelated files and avoid overwriting them.
+Canonical conversion generates musical MUC and required PCM representations
+or assets. Compiler bank packaging and MUB compilation are later steps.
+PCM IR alone is not a bound, compilable bank. Matching stems do not establish
+ownership of neighboring reference MUB/PCM files. Remove generated assets
+only when recorded ownership, saved path and content identity match;
+preserve unrelated files and avoid overwriting them.
 
-Inherited MDX/MGSDRV outputs, where retained and explicitly supported, are
-compatibility paths, not the default target or the design center.
-
-The goal is not merely similar sound, compilation or passing tests.
-Reconstruct useful musical structure while preserving inspectable source
-evidence and transformations. Register replay/roundtrip is supporting
-validation, not the purpose of this project.
-
-Conceptually:
-
-```text
-VGM
- ↓
-Raw Register Writes / PCM Evidence
- ↓
-Native Chip State / Events
- ↓
-Inspectable Analysis Passes
- ↓
-Musical Segments / PCM IR
- ↓
-Musical Interpretation / Structural Analysis
- ↓
-Target Projection
- ↓
-MUCOM88 MML / explicitly retained compatibility outputs
-```
-
-The implementation need not mirror this diagram one-to-one.
-Do not refactor merely to make module boundaries match it.
+Explicitly supported inherited MDX/MGSDRV outputs are compatibility routes.
+Register replay, compilation and similar sound support validation; useful
+musical structure with inspectable transformations remains the goal.
+The implementation need not mirror the diagram one-to-one; do not refactor
+merely to make module boundaries match it.
 
 ---
 
 # 2. Canonical Frontend
 
-`vgm2mml.py` is the **canonical user-facing conversion entry point**.
+`vgm2mml.py` is the canonical user-facing conversion entry point. Normal
+conversion capabilities belong in its pipeline, with explicit options where
+needed and specialized modules behind the interface.
 
-Normal conversion functionality should be reachable through
-`vgm2mml.py` using explicit source/target/output options where necessary.
-The default output contract is musical MUCOM88 MUC for YM2608 with
-required PCM handling. This is the intended behavior, not a claim that
-current implementation already satisfies it. If `--target` is supported,
-it selects an output format, not a source chip or synthesis algorithm.
-Document actual option names and aliases from implementation rather than
-importing MDX CLI assumptions. Source routing, projection model, fidelity
-policy, notation and diagnostics are separate concepts.
+The default output contract is musical YM2608 MUC with required PCM handling.
+An intended contract is not proof that every feature is implemented.
+`--target`, where supported, selects output format, not source chip or
+synthesis algorithm. Verify actual options/aliases against implementation.
+Source routing, projection, fidelity policy, notation and diagnostics differ.
 
-Target-specific scripts under `scripts/` may exist for:
-
-* experiments;
-* diagnostics;
-* regression analysis;
-* fixture preparation;
-* comparison;
-* one-off development tools.
-
-They must not silently become independent production conversion
-frontends.
-
-Do not create a second normal VGM conversion entry point merely because
-a new target or interpretation is being implemented.
-
-If target-specific logic becomes part of normal conversion, integrate
-that capability into the canonical `vgm2mml.py` pipeline while keeping
-target-specific implementation details in appropriate modules.
+Scripts may wrap canonical conversion for batch export, compilation,
+experiments, diagnostics, regressions, fixture preparation and comparison.
+They must not silently become independent production converters.
+A new target or structural interpretation does not justify another frontend.
 
 ---
 
@@ -194,102 +121,57 @@ what information is added, removed, or reinterpreted.
 
 # 4. Transformation Boundaries
 
-Keep these responsibilities conceptually separate.
+Keep the following responsibilities separate. A module may serve more than
+one stage, but the meaning and provenance of each representation must stay
+visible.
 
 ## 4.1 Raw Register Writes
 
-Preserve what was written to the source chip, when it was written, and
-ordering between writes.
-
-Avoid musical interpretation here.
+Retain source commands, operands, timestamps and write order. Avoid musical
+interpretation here.
 
 ## 4.2 Chip-Specific State / Events
 
-Reconstruct the meaning of register writes using the native semantics of
-the source chip.
-
-Examples:
-
-* OPNA: FNUM/BLOCK, frequency latches, operator Key state and shared controls
-* OPM: KC/KF, operator parameters, partial Key state and shared controls
-* OPLL: FNUM, BLOCK, instrument, volume, Key state
-* PSG/SSG: tone period, mixer, noise, fixed/hardware envelope state
-* SCC: frequency, volume, waveform state
-* rhythm modes: trigger and per-instrument state
-
-Do not force different chips into a lowest-common-denominator state
-schema.
+Reconstruct effective native state, including latches, operator masks,
+shared controls and playback evidence. Different chips need different
+schemas; do not invent a lowest-common-denominator register model.
 
 ## 4.3 Inspectable Analysis Passes
 
-Analysis may progressively derive higher-level information. Later passes
-may repeat earlier fields when this improves human inspection.
-
-A pass is not disposable debug text.
+Derive meaning progressively and preserve input/output evidence. Repeating
+fields for human inspection is acceptable; passes are not disposable text.
 
 ## 4.4 Musical Segments
 
-Segments represent interpreted musical objects or sounding intervals.
+Segments are interpreted objects or state/sounding intervals with explicit
+start/end, continuity, retrigger, waveform or rhythm identity where justified.
+A Segment is not a raw write, and not every interval is a complete note.
+Do not invent event-stage facts that require later interpretation.
 
-This is where concepts such as:
+Split/merge source Segments only for a justified source-interpretation
+change, never solely for notation, compression, buffer limits or an oracle.
 
-* start/end;
-* duration;
-* retrigger;
-* continuity;
-* note identity;
-* waveform identity;
-* rhythm identity;
+## 4.5 Musical Interpretation / Structural Analysis
 
-may be derived.
+Reconstruct sounding units with ordered internal control trajectories, then
+continuity, phrases, patterns, loops, macros and related gestures. Source
+Segment boundaries need not be note/tie boundaries; several Segments may
+contribute to one gesture. Keep source events and membership mappings.
 
-A Segment is not a raw register event.
+Whole-gate grouping must preserve partial Key transitions, retriggers,
+release evidence and chip-specific exceptions. Released parameter writes
+can still affect an audible envelope. Do not force every source into a
+binary FM gate model or erase zero-time actions.
 
-Do not invent information at the event/state stage that can only be
-inferred during Segment construction.
+## 4.6 Target Projection / Rendering
 
-Do not split or merge Segments solely to accommodate target notation,
-compression, buffer limits, or a regression oracle. Such operations
-belong to a later representation unless they reflect a justified change
-in musical interpretation.
+Select target timing, pitch/control spelling, allocation, banks, loop/macro
+syntax and compiler/runtime constraints. Render projected musical structure,
+then compact text while preserving projected semantics.
 
-## 4.5 Structural Analysis
-
-Structural analysis operates **after source semantics and musical
-Segments have been reconstructed**.
-
-Its purpose is to discover useful musical organization such as:
-
-* note continuity;
-* repeated phrases;
-* source loops;
-* candidate musical loops;
-* repeated control patterns;
-* reusable macros;
-* sustained musical gestures;
-* higher-level relationships between adjacent Segments.
-
-Structural analysis must not rewrite source history.
-
-A Segment boundary is evidence about interpreted source behavior. It is
-not automatically a required MML note boundary.
-
-Likewise, several Segments may contribute to one higher-level musical
-gesture when continuity is justified.
-
-Structural analysis should preserve mappings back to the Segments and
-source events from which the structure was inferred.
-
-## 4.6 Target Projection
-
-The target stage decides how interpreted musical information and
-structure can be represented in MUCOM88 MML for YM2608, explicitly retained
-compatibility formats, or future targets.
-
-Target limitations and conveniences must not rewrite source history.
-
-Information loss should occur as late as practical and should remain
-inspectable.
+Keep immutable native evidence, musical interpretation and target views
+separate. Delay unavoidable loss and expose it with source-linked diagnostics.
+Target convenience must not rewrite source history.
 
 ---
 
@@ -327,41 +209,18 @@ explicit interpretation stage.
 
 # 6. Preserve Evidence and Derived Meaning Separately
 
-Whenever practical, preserve both:
+Preserve source representations alongside derived physical/musical values:
+KC/KF or FNUM/BLOCK with `frequency_hz`/note, tone period with frequency,
+waveform bytes with a stable identity, encoded PCM with decoded target data.
+Derived values must not silently replace the evidence used to calculate them.
 
-1. the source-chip representation; and
-2. the physical or musical quantity derived from it.
+Unknown/unwritten state remains unknown unless an explicit documented reset
+assumption applies. Non-applicable fields stay empty/null or chip-specific;
+do not invent values to complete a schema.
 
-For example, Yamaha FM pitch analysis may retain:
-
-```text
-KC / KF
-```
-
-or, for chips using that representation:
-
-```text
-FNUM
-BLOCK
-```
-
-alongside:
-
-```text
-frequency_hz
-musical_note
-```
-
-For PSG, retain source tone period when deriving frequency.
-
-For SCC, retain waveform data or a stable waveform identity.
-
-Derived values must not silently replace source evidence.
-
-Unknown or unwritten source state must remain unknown unless an explicit,
-documented reset assumption applies.
-
-Do not fill absent fields with invented values.
+Distinguish observed writes/addresses, reset assumptions, inferred onset,
+nominal playback position/natural end, and target-quantized values. A value
+used to spell target output is not a newly observed native source value.
 
 ---
 
@@ -427,200 +286,91 @@ target-stage decision. The source evidence must remain available.
 
 # 9. Chip-Specific Durable Semantics
 
-## 9.1 OPM / YM2151
+Retain each chip's native identities, pitch encoding, volume direction,
+operator/key state, waveform, mixer, envelopes, noise and shared controls.
+Register order, effective state and unknown fields must remain inspectable.
+Parameter/modulation changes while held are not automatically attacks.
 
-OPM/YM2151 is an inherited source-analysis domain, not the default target.
+Reconstruct musical continuity before assessing target expressibility.
+LFO/AMS/PMS presence is not by itself reason to reject source Segments;
+unsupported target behavior needs a specific diagnostic. Compilation cannot
+prove that modulation was reproduced.
 
-Native OPM analysis must preserve OPM semantics rather than invent
-OPLL-like FNUM/BLOCK or preset voices.
+FM, SSG, rhythm and ADPCM-B are distinct OPNA source domains. Preserve each;
+do not silently output FM/SSG while omitting active rhythm or PCM.
+Diagnostic register-MML dialects do not define normal musical MUC rules.
 
-Preserve where relevant:
-
-* all four operator identities;
-* KC/KF;
-* Key-On/Key-Off state;
-* partial operator Key masks;
-* algorithm and feedback;
-* operator parameters;
-* pan;
-* PMS/AMS;
-* LFO and shared controls;
-* noise state;
-* same-time transitions;
-* register ordering;
-* unknown/unwritten state.
-
-Parameter changes must not create artificial Key-Ons.
-
-A held OPM note may contain multiple source-state changes without
-representing multiple musical attacks.
-
-Segment boundaries created by parameter changes must therefore not be
-translated mechanically into separate target notes joined by ties.
-
-MUCOM88 rendering should consume interpreted musical continuity and target
-projection, not merely serialize each Segment independently.
-
-Retain `docs/opm_segments.md` where available for source semantics. Historical
-MDX documents can supply shared design evidence, not MUCOM88 syntax.
-
-## 9.2 OPLL / YM2413
-
-Pitch uses FNUM and BLOCK; preserve both when available.
-
-OPLL volume direction is inverted relative to conventional loudness:
-
-```text
-VOL = 0   -> loudest
-VOL = 15  -> quietest / near silence
-```
-
-Register writes need not arrive in convenient note-oriented order.
-Reconstruct effective state without assuming all parameters precede
-Key-On.
-
-User-defined patch registers are meaningful source data. Do not silently
-replace them with perceptually similar presets.
-
-OPLL rhythm trigger edges and channel 6--8 pitch state should be
-preserved before target projection.
-
-An inherited MGSDRV layout may differ between melodic and rhythm modes.
-MUCOM88 rhythm mapping requires its own target decision. Neither target
-layout may delete source Segments.
-
-## 9.3 OPNA / YM2608
-
-OPNA/YM2608 is the primary native route and the default target chip.
-Native analysis keeps FNUM/BLOCK, frequency-latch evidence, per-operator
-parameters and Key edges in its own source IR. Do not project into OPM
-merely to construct source Segments. Register-bank operator order and
-key-mask order differ. Committed frequency is not the last upper-register
-write; retain both write evidence and effective pairs.
-
-Retain algorithm/feedback, operator identity, partial Key masks, pan,
-PMS/AMS, LFO/shared controls and unknown/unwritten state where relevant.
-Parameter/modulation changes while held do not imply new attacks.
-Presence of LFO, AMS or PMS is not itself a reason to reject the whole
-musical conversion: first reconstruct sounding units and internal controls,
-then assess target expressibility and explicit loss/unsupported policies.
-Do not claim unsupported modulation has been reproduced because MUC compiles.
-
-FM, SSG, rhythm and ADPCM-B are distinct source domains. Retain their
-native evidence separately and document actual support per route.
-Do not silently emit FM/SSG while omitting unimplemented rhythm or PCM.
-Retain source SSG prescaler semantics before target pitch/timing projection.
-
-MUCOMVGM register-MML is an optional diagnostic route for interpretation.
-It is not normal musical MUC. Its virtual timing and command/pitch/PCM
-conventions must not define native MUCOM88 output. MUB-to-VGM replay checks
-specific target properties; it does not replace musical/structural analysis.
-
-See `docs/opna_segments.md` and `docs/mucom_musical_projection.md` where
-retained. Support-status statements require implementation evidence and
-must not narrow the project's architectural purpose.
-
-## 9.4 PSG / SSG
-
-PSG state is not "OPLL with different parameters."
-
-Preserve tone period, tone/noise enable state, noise period, mixer state,
-fixed volume, and hardware envelope state as required for interpretation.
-
-Noise and hardware envelope behavior are musical source data.
-
-If the target needs IDs, macros, reconstructed commands, or conversion
-to another chip family, retain decoded source state in an earlier pass.
-
-## 9.5 SCC
-
-Programmable waveform data is first-class source information.
-
-Preserve waveform bytes or a stable identity, timing of waveform changes,
-channel use, pitch, and volume where relevant.
-
-Exact equality may be used for stable deduplication; stronger
-normalization requires explicit justification.
+Source specifications: [OPNA](opna_segments.md), [OPM](opm_segments.md),
+[PSG/SCC](psg_scc_segments.md), [OPNA SSG](opna_ssg.md),
+[OPNA ADPCM-B](opna_adpcm.md). Broader schema/OPLL requirements are in
+[Segment requirements](segment_intermediate_format.md); proposed schema
+capability is not a claim of implemented support. MUCOM rules and current
+limits belong in [target projection](mucom_musical_projection.md).
 
 ---
 
 # 10. Rhythm Semantic Layer
 
-Where a common musical rhythm vocabulary is useful, use:
+A common drum vocabulary describes musical identity, not shared synthesis
+implementation. Retain source names, trigger/key edges, timestamps, pitch,
+volume and pan where applicable. Derive durations only when justified.
 
-```text
-BD
-SD
-TOM
-HH
-CYM
-RIM
-```
+Overlapping percussion hit/dump/control actions are not one serial held
+note. Preserve zero-time actions and identify driver-generated writes;
+compilation does not show that envelope phase survived.
 
-This vocabulary describes musical meaning, not source implementation.
-
-Source-specific terminology may still be retained in diagnostic/source
-fields.
-
-Rhythm event/state representations should preserve source trigger state,
-timestamp, volume, source pitch fields and pan where applicable.
-
-Segment construction may derive sounding intervals later.
-
-Do not infer duration earlier than the available evidence justifies.
+The vocabulary and source/Segment distinction are specified in
+[Segment requirements](segment_intermediate_format.md#6-add-a-semantic-rhythm-segment).
+Actual OPNA action projection is in [MUCOM projection](mucom_musical_projection.md).
 
 ---
 
 # 11. Source Structure, Patterns, Envelopes, and Compression
 
-Pattern detection and compression must operate without destroying the
-information-preservation pipeline.
+Keep reversible source structures and mappings from candidates, occurrences,
+envelopes, loops and macros to original Segments/events. A repeated candidate
+is structural evidence, not permission to rewrite source Segments.
 
-A repeated candidate is evidence of structural similarity, not automatic
-permission to rewrite source Segments.
+Search both between sounding units and within held/released trajectories.
+Distinguish new attacks from held controls even when state values match.
+Do not fabricate attacks when splitting at a target song-loop marker.
 
-Prefer reversible structural plans and retain mappings from patterns,
-occurrences, envelopes, loops, or macros back to the original
-Segments/events.
+Keep native catalogs/trees alongside separate target-feasible views. Every
+selected repeat must preserve native meaning and expand to the same ordered
+projected commands, including initialization, zero-time actions and ties.
+Record each view's own projection and which one was selected.
 
-Target loops/macros may be selected only when their expansion preserves
-the required target command semantics.
+Compression must not introduce note boundaries, attacks, resets or timing
+changes. Software-envelope extraction must not invent unobserved tails;
+source volume trajectories and attack/restart semantics remain authoritative.
 
-Do not introduce new note boundaries, attacks, state resets, or
-quantization merely to improve compression.
+Count/depth limits, setter compaction and macros are target/compiler-specific.
+Compose inner/outer/duration repeats before target limits; retain pre-limit
+selection and report expansion. Text length and compiled size differ.
+Shorter MML is not evidence of better conversion.
 
-For software-envelope extraction, do not invent unobserved tails.
-
-Source volume trajectories and attack/restart semantics remain
-authoritative.
-
-Target output size and driver/compiler limits are real constraints, but
-solving them belongs at or near target projection.
-
-Shorter MML is not evidence of a better conversion.
-
-See `docs/melody_patterns.md` and focused field notes for current
-algorithms and experimental results where those documents are retained.
+Algorithms and reports: [patterns and musical structure](melody_patterns.md).
+MUC-specific choices: [MUCOM projection](mucom_musical_projection.md).
 
 ---
 
 # 12. Source Loops and Target Loops
 
-Declared VGM loops are source structure and must be preserved without
-inventing a Key-On at the loop boundary.
+Declared VGM loops are source structure. Preserve state and provenance on
+replay without inserting Key-On, Key-Off or decoder reset at a jump.
+Structural candidates remain reversible, including overlapping alternatives.
 
-Structural loop candidates should remain reversible until target
-selection.
+Target song loops, finite phrase repeats, startup latency and projected loop
+periods are distinct. A finite-song option changes target markers/seam
+constraints, retaining source-loop facts and first-traversal EOF timing.
+Validators must use the recorded target policy to choose source iterations.
 
-Overlapping or nested alternatives may be useful to later macro or loop
-selection.
+Compiler acceptance, character count, compiled size and musical/source
+equivalence are independent dimensions; success in one does not prove others.
 
-Compiler acceptance, MML character count, compiled size, and
-musical/source equivalence are separate validation dimensions.
-
-Success in one does not prove the others.
-
-See `docs/vgm_loop.md`, where retained, for VGM loop details.
+[Reader replay](vgm_loop.md) also documents inherited MDX-specific behavior;
+that warm-up/PDX policy is not automatically a MUCOM rule. See
+[MUCOM timing and loops](mucom_musical_projection.md#時刻とループ).
 
 ---
 
@@ -655,114 +405,62 @@ canonical conversion architecture.
 
 # 14. MUCOM88 MML Is a Musical Target, Not a Segment Dump
 
-MUCOM88 MML generation must not be implemented as a mechanical one-to-one
-serialization of Segment rows.
+MUC must represent reconstructed performance, not mechanically serialize
+`Segment → fragment → tie → next Segment`. Distinguish state changes,
+attacks, continuations, pitch/control changes, terminations and repetitions.
+A Segment boundary does not require a note or tie; a tie is target syntax.
 
-In particular:
+Reconstruct musical structure before textual compaction. Explicit target
+controls may express meaningful behavior when traceable and justified;
+shortening an incorrect flat renderer does not repair missing interpretation.
 
-```text
-Segment -> MML fragment -> tie -> next Segment
-```
+Reuse established sounding-unit reconstruction, held control processing,
+note-length correction, continuity, phrase/pattern and loop processing from
+x68k/MSX where semantics apply. Identify actual reuse versus required adapter
+work. A fixed grid, fragment emission, one extra modulation command or blanket
+modulation rejection does not substitute for connecting that pipeline.
 
-is not a general model of musical reconstruction.
-
-Segments exist primarily to preserve interpreted source state and
-boundaries. MUCOM88 MML should instead represent the reconstructed musical
-performance as naturally and structurally as the available evidence
-allows.
-
-The MUCOM88 path should distinguish at least:
-
-```text
-source/state change
-musical attack
-musical continuation
-pitch change
-target control change
-note termination
-structural repetition
-```
-
-A source parameter change during a held note does not automatically
-require a new note token.
-
-A Segment boundary does not automatically require a tie.
-
-A tie is a MUCOM88/MML representation choice, not a generic relationship
-between adjacent Segments.
-
-When ordinary MUCOM88 notation cannot faithfully express a meaningful source
-behavior, explicit target controls may be used where justified. Such
-controls must remain traceable to source evidence.
-
-Musical structure should be reconstructed before textual compaction.
-
-Do not optimize an incorrect flat representation merely because it can
-be made shorter with loops, ties, or macros.
-
-**Reuse established musical interpretation and structural processing from
-x68k_vgm2mml / msx_vgm2mml, adapting target projection and notation to MUCOM88.
-Repository separation does not justify a new flat Segment renderer.**
-
-Where native Key evidence permits it, interpret Key-On through Key-Off as
-one sounding unit with internal pitch, volume and control trajectories.
-Preserve partial Key transitions, retriggers, release evidence and chip-specific
-exceptions. Keep source Segments intact; build a separate musical view linked
-to them. Do not force every source chip into a binary FM gate model.
-
-Connect this view to the established note-length correction, continuity,
-phrase/pattern and loop processing where semantically applicable. Identify
-which stages are reused and which require MUCOM-specific adaptation.
-A fixed global grid/tempo and fragment-by-fragment emission do not substitute
-for that integration. Do not solve a missing musical pipeline only by adding
-one modulation command or rejecting all Segments containing modulation.
+Current MUC syntax, native driver side effects, projection artifacts,
+compiler profiles and unresolved CH3/CSM/auxiliary limits are documented in
+[MUCOM musical projection](mucom_musical_projection.md).
 
 ---
 
 # 15. Target Formats Are Not Canonical Internal Representations
 
-MUCOM88 MML, MDX MML, MGSDRV MML and other targets have different constraints.
-Target-specific choices include duration encoding, voices/control commands,
-noise/envelopes, rhythm, sample banks, ties/rests/gates, loops/macros,
-channel allocation and runtime timing. Do not shape source State/Segments
-solely around one target's syntax.
+MUCOM88, MDX, MGSDRV and future targets differ in timing, voices, controls,
+noise/envelopes, rhythm, PCM banks, ties/gates, allocation, loops and macros.
+Do not shape source State/Segments solely around any target's syntax.
 
-When a target approximates or discards information:
+When approximating or discarding information, preserve earlier evidence,
+report affected source objects, perform loss in projection and never rewrite
+the source to pretend it lacked that information. Same-chip source validity,
+compiler limitations, missing projection and timeout are different failures.
+Prove target commands with native synthetic replay before relaxing guards.
 
-1. preserve source information in an earlier inspectable stage;
-2. report approximation and affected source objects;
-3. perform loss in target projection;
-4. do not rewrite earlier representations to pretend the source lacked it.
+Keep exact duration spelling separate from optional timing correction.
+Estimator fit does not prove representability; inspect final boundaries,
+intervals and cumulative error against the originals. Failed correction
+retains the structured baseline renderer, never a flat Segment dump.
 
-Reuse proven shared musical/structural processing when native semantics
-are preserved. Adapt MUCOM88 syntax/compiler/runtime behavior explicitly.
-Do not import MDX macro exclusions, PDX limits, KC/KF ranges, 4 MHz target
-clocks or MGSDRV command behavior as MUCOM88 rules.
+FM/SSG/rhythm/PCM share one target timeline and recorded map for rendering,
+pass dumps and validation. Protect required positive intervals and command
+order within the declared budget, or reject/fall back explicitly. Collapsed
+internal controls are diagnosed separately from lost whole gates.
 
-Exact duration spelling and optional target timing correction are separate.
-Retain source times, report actual timing errors and check cumulative errors
-against original boundaries. Estimator fit alone does not establish
-representability. Failure to adopt correction must retain the structured
-musical renderer with documented baseline timing, not select a Segment dump.
+Nominal pitch/rate correction does not establish detune, envelope, key
+scaling, LFO, timer or acoustic equivalence. Keep clocks/register bytes intact.
+MDX 4MHz, PDX capacities/KC-KF rules and MGSDRV clocks/macros are not MUC rules.
+Historical reference MML informs structure, not an exact MUC text oracle.
 
-FM, SSG, rhythm and PCM must share a coherent target song timeline.
-Keep source samples, musical timing and driver timing separate. Use validated
-MUCOM-specific bounds/options/fallbacks rather than blindly copying MDX
-normalization constants or short-note defaults.
+Compiler dialect/version, pitch tables, carrier volume, PCM addressing/rate,
+banks and runtime/MUB compatibility require explicit target documentation.
+Native MUCOM88, Windows and intended MSX/Makoto MUCOMSX/MUBPLAY use need
+separate format/memory/clock/runtime checks; this objective is not verified
+compatibility for all MUBs and is distinct from MGSDRV output.
 
-Compiler dialect/version, pitch tables, carrier-volume mapping, rhythm
-commands, PCM rate/address conventions, banks and MUB limits belong in
-focused MUCOM documentation with supporting evidence. Compilation,
-selected MUB-to-VGM checks and actual playback are separate results.
-Native and diagnostic dialects must remain distinct.
-
-Where retained, MGSDRV syntax references remain compatibility references:
-
-* `https://p.gigamix.jp/mgsdrv/MGSDR320.TXT`
-* `https://z80.msx.click/index.php?title=MGSDRV_MML_11_JP`
-
-They do not specify MUCOM88 syntax. Historical MDX reference MML can supply
-musical structure evidence, not an exact-text oracle for MUC output.
+See [normalization](output_normalization.md), [MUCOM projection](mucom_musical_projection.md)
+and [inherited MGS compatibility](mgs_compatibility.md).
 
 ---
 
@@ -806,75 +504,44 @@ different kinds of evidence.
 
 Record which kind supports a conclusion.
 
+Export statistics distinguish artifacts, encoded-byte identity, projected
+frequency/timing and native load/playback/ending/display. Raw Key requests,
+operator edges and compiled MUB note/hold counts are different measurements.
+Do not combine them into unsupported fidelity percentages; label unperformed
+comparisons explicitly.
+
 Do not overfit a general rule to one song or fixture.
 
 ---
 
 # 17. Tests and Fixtures
 
-Fixtures should make specific behaviors reproducible and, where
-practical, cover the relevant layers:
+Use reproducible fixtures with scoped oracles across raw/state evidence,
+Segments, musical structure, target projection and output where practical.
+A fixture validates only the behavior it was designed and justified to test.
 
-```text
-source VGM
-raw/state trace
-analysis pass
-Segments
-structural interpretation
-target projection
-target output
-```
+Before changing expectations, identify whether source semantics,
+interpretation/Segments, structure, target projection or the oracle is wrong.
+Never reshape intermediate evidence solely to satisfy an expected artifact.
 
-Do not blindly update expected artifacts when a regression test fails.
-
-First determine whether:
-
-1. the implementation violated source semantics;
-2. the interpretation/Segment logic is wrong;
-3. the structural interpretation is wrong;
-4. the target projection is wrong;
-5. the test expectation encodes obsolete or incorrect behavior.
-
-**Never change an intermediate representation solely to satisfy an
-expected artifact.**
-
-A fixture is an oracle only for the behavior it was designed and
-justified to test.
-
-Private copyrighted source material must not be copied into tracked
-documentation or fixtures unless explicitly safe to commit.
+Private copyrighted VGM/ROM/WAV/MML material stays out of tracked documents
+and fixtures unless explicitly safe to commit. Respect the user's ownership
+of private regression; unavailable or unexecuted checks must be reported.
 
 ---
 
 # 18. Human-Readable Intermediate Output
 
-Intermediate output should favor diagnosis over compactness.
+Favor diagnosis over compactness: explicit field semantics, native encodings
+beside physical values, null/non-applicable fields, timestamps, channels,
+source indices, Segment IDs and pattern/occurrence memberships.
 
-Use explicit names with stable semantics.
+`--dump-passes` is a diagnostic contract. Every non-trivial stage needs an
+inspectable input/output; do not remove dumps merely because final MML works.
+Preserve enough mapping to trace a target event back toward its source.
 
-Prefer `frequency_hz` for a physical frequency while retaining native
-source representations such as:
-
-```text
-KC
-KF
-FNUM
-BLOCK
-tone_period
-```
-
-where applicable.
-
-Do not fill non-applicable fields with misleading values.
-
-Use empty/null values or chip-specific schemas.
-
-Preserve enough timestamps, channel/source indices, Segment IDs,
-pattern/occurrence IDs, structural mappings, and other identifiers to
-trace target behavior back toward source evidence.
-
-PASS files generated by `--dump-passes` are part of the project's
-diagnostic contract, not arbitrary temporary dumps.
+Schema requirements: [intermediate CSVs](segment_intermediate_format.md#12-intermediate-csvs-must-be-human-inspectable).
+Current MUC pass names: [target artifacts](mucom_musical_projection.md#中間成果物).
 
 ---
 
@@ -914,353 +581,93 @@ When adding a new target or major target behavior:
 
 # 20. Documentation Placement
 
-Keep documentation layered so the highest-priority rules remain visible.
+| Location | Responsibility |
+|---|---|
+| `AGENTS.md` | Short always-on operating rules and repository navigation |
+| `docs/project_knowledge.md` | Enduring project-wide architectural/semantic principles |
+| Focused `docs/*.md` | Current subsystem specifications, constraints, usage and unresolved support |
+| External private `field_notes/*.md` | Dated experiments, measurements, fixture findings, regressions and rejected approaches |
+| `mistaken.md` | Repeated failures and do-not-repeat rules |
+| `handoffs/current.md` | Only the active restart state and next allowed action |
 
-## `AGENTS.md`
+Promote a finding only when its scope and evidence justify a stable principle.
+Keep actionable public constraints and their rationale accessible without
+private notes; do not hide them as experiment history.
 
-Only short, always-on operating rules and repository navigation.
+Field-note references mean the external directory configured in `AGENTS.md`,
+not a local `field_notes` folder. Check existing notes before adding duplicate
+results. Record unavailable access; do not invent missing decisions or paths.
 
-## `docs/project_knowledge.md`
-
-Only stable architectural principles and durable chip/domain knowledge
-that should guide future work.
-
-## Focused `docs/*.md`
-
-Current design and usage of substantial subsystems, for example:
-
-* timing;
-* loops;
-* patterns;
-* OPNA and inherited source Segments;
-* musical MUCOM88 MML / YM2608 projection;
-* PCM banks and compiler/runtime compatibility;
-* OPLL rhythm;
-* compatibility targets.
-
-## `field_notes/*.md`
-
-Dated experiments, measurements, fixture-specific findings, regressions,
-benchmarks, rejected approaches, and provisional conclusions.
-
-A finding may move from a field note into this file only after it becomes
-a stable project principle or durable domain rule.
-
-Do not append implementation history to this document merely because it
-may be useful later.
-
-## `handoffs/current.md`
-
-Keep only information needed to continue the **current active work**.
-
-Do not use the handoff as an accumulating project history.
-
-When the active development direction changes, rewrite or prune the
-handoff so obsolete work does not compete with the current objective.
+Rewrite/prune handoffs when the active direction changes. Neither handoffs
+nor this document are accumulating implementation histories.
 
 ---
 
 # 21. Inherited Knowledge and Compatibility Paths
 
-Retain inherited readers, native analysis and Segment-generation paths.
-Preserve existing compatible outputs where explicitly supported. Do not
-refactor proven paths solely for superficial uniformity.
+Retain inherited readers, native analysis, Segment generation and explicitly
+supported compatibility output. Do not rewrite proven paths for superficial
+uniformity. Changing the default target does not invalidate established
+musical reconstruction and structural processing.
 
-Compatibility does not require MUCOM88 projection to follow historical
-MDX/MGSDRV target choices. Changing the default target also does not
-invalidate established musical reconstruction/shared structural processing.
-Share infrastructure for semantic reasons; keep chip semantics and target
-behavior specialized where meanings differ.
+Share infrastructure for semantic reasons; specialize source-chip meanings
+and target behavior. Copied modules do not prove the new entry path actually
+executes their musical/normalization stages. Document connected stages and
+adapters without claiming complete cross-repository code unification.
 
-**Classify inherited documentation by meaning, not filename or chip name.**
-A note mentioning MDX/OPM may record a cross-target architectural decision.
-Deleting or moving it does not revoke that decision. Before pruning notes,
-retain durable common principles here or in focused shared-design documents.
+Classify inherited knowledge by meaning, not filename/chip name. Moving a
+note does not revoke its shared principles. Recover relevant existing notes
+before changing associated behavior; unavailable dated evidence does not
+invalidate the public principles retained here.
 
-The supplied diagnostic report identifies these historical recovery candidates:
-
-* `2026-10-07_mdx_musical_output.md`: sounding units with internal pitch,
-  volume and control changes;
-* `2026-10-08_psg_opm_musical_connection.md`: connect to established musical
-  processing rather than serialize Segments with commands and ties;
-* `2026-10-10_shared_output_normalization.md`: preserve source Segments
-  while correcting note lengths and structuring the output view.
-
-These are recovery candidates, not a claim that the files exist here or
-that their full contents have been verified. Recover relevant notes from
-the source repository/history or an explicitly configured private notes
-repository before changing associated behavior. The durable principles
-above remain applicable when dated notes are unavailable.
-
-Private notes need not be public dependencies. Record local lookup locations
-in appropriate local instructions; retain enough stable public principles
-for developers without private access to maintain the architecture.
-Do not invent missing notes, paths or support status.
+Private notes are not public dependencies. Public maintenance must have
+sufficient stable rules; do not invent support status or missing evidence.
 
 ---
 
 ## 22. PCM Source Evidence and YM2608 Target Projection
 
-PCM source evidence is target-independent. Preserve exact encoded bytes,
-source timing, playback/control events, decoder evidence and observed-versus-
-assumed distinctions. Raw → State → Segment/PCM IR → Target boundaries
-remain explicit.
+PCM source evidence is target-independent: preserve exact encoded bytes,
+codec, timing, playback/control events, decoder/reset assumptions and
+observed-versus-inferred distinctions. Encoded sample identity, memory
+location, playback identity and decoder continuation are different concepts.
+Byte equality or nominal duration cannot prove unknown decoder consumption.
 
-Sample identity uses codec and exact supplied bytes; memory location,
-playback identity, timing and decoder continuation are separate. Unknown
-consumption/runtime behavior cannot be inferred from byte equality or nominal
-duration. Retain encoded source and decoded/transcoded target data separately.
+Keep source control slices separate from whole playback epochs. Held
+rate/level/pan updates are not sample attacks. Nominal source positions and
+inferred natural ends form a separate interpretation; target timing/rate
+needs its own consumption/exhaustion audit and explicit omission identities.
+Memory/address/data/reset/repeat changes require their own semantic proof.
 
-Native OPNA ADPCM-B and MSM6258 use distinct codecs/semantics. Do not import
-MSM6258 independent-note eligibility, PDX slot limits or X68000 constraints
-as OPNA source rules. Retain explicit memory-initialization assumptions and
-unsupported decoder epochs in source observations and target diagnostics.
+Delta-T, SegaPCM stepping and MSM6258 are distinct runtimes/codecs. Do not
+turn PDX or MUC into universal PCM IR or import independent-note/slot/hardware
+limits as OPNA source rules. Reuse decoders/structure/normalization only where
+their meaning applies; preserve decoded/transcoded target data separately.
 
-YM2608 sample conversion, capacity, bank layout, address/rate encoding and
-MUCOM compiler packaging belong to target projection. PCM IR must later bind
-to actual bank data, sample references and MUC playback/dependency commands.
-Do not silently omit PCM or label IR alone as playable output.
+Target conversion, capacity, rate/address encoding, bank binding and compiler
+packaging belong to projection. IR alone is not playable PCM output.
+Strict projection rejects known loss; an explicitly supported best-effort
+policy reports source-linked losses without fabricating unknown state.
+Generation, compilation and runtime certification are separate outcomes.
+Preserve unrelated reference assets.
 
-Strict projection rejects known semantic loss; explicitly supported
-best-effort policies report source-linked losses. They cannot fabricate
-unknown source decoder state. Generated assets, compilation and runtime
-validation are separate results. Preserve unrelated reference MUB/PCM assets.
-
-Use focused PCM source/target and MUCOM projection documentation where
-retained. Historical PDX documents describe a different target.
+Contracts: [PCM source and target](pcm_source_and_target.md),
+[OPNA ADPCM-B](opna_adpcm.md), [SegaPCM](segapcm_segments.md),
+[MUCOM PCM projection](mucom_musical_projection.md#pcm保持中制御と相互運用の境界).
 
 ---
 
 # 23. Final Rule
 
-When uncertain whether to simplify, merge, split, normalize, quantize,
-discard, restructure, or reinterpret data:
+Before simplifying, merging, splitting, normalizing, quantizing, discarding
+or reinterpreting data:
 
-1. preserve the source evidence;
-2. expose it in an inspectable intermediate result;
-3. make the interpretation explicit;
-4. distinguish source interpretation from musical restructuring;
-5. defer irreversible loss until the target stage;
-6. ask whether a human can still trace the final result back toward the
-   VGM.
+1. Preserve the source evidence and expose it in an inspectable pass.
+2. Make interpretation explicit and separate it from musical restructuring.
+3. Defer unavoidable loss to target projection and diagnose its scope.
+4. Verify that a human can trace output behavior back toward the VGM.
 
-If the answer to step 6 becomes "no", the change requires strong
-justification.
-
-The central design question is not:
-
-> "How can we make this conversion simpler or make this test pass?"
-
-Nor is it:
-
-> "How can every Segment be represented directly in MML?"
-
-It is:
-
-> "What musical behavior can be reconstructed from the source evidence,
-> what information is being changed or lost at each transformation stage,
-> and is that interpretation or loss intentional?"
-
-A final target file is not sufficient evidence that the conversion is
-correct.
-
-The path from source register stream through interpreted musical
-structure to the target must remain inspectable.
-
-
----
-
-## 24. Target Timing, Clock Projection and Playback Compatibility
-
-Keep native clock/pitch bytes and original sample timestamps intact.
-Handle clock differences in separate YM2608 target projection with explicit
-target clock, pitch/rate rounding, range checks and loss diagnostics.
-Nominal pitch correction does not automatically correct detune, envelopes,
-key scaling, LFO, timers or acoustic behavior.
-
-Output normalization distinguishes complete short sounding gates from short
-internal Segment/control slices. Partial, repeated/unclosed Key operations
-require conservative handling. Any supported omission policy retains source
-State/Segments, PCM bytes and elapsed song time, reports lost events/durations
-and uses an explicit output policy. The user-selected MUCOM default is now
-8 ms (floor352 samples), implementing the inherited two-part policy below;
-MDX hardware multipliers remain separate and are never MUCOM clock rules.
-
-If rounding collapses a protected positive interval, preserve required order
-and start/end separation within the declared movement budget, or reject/fall
-back explicitly. Check final boundary errors, intervals and cumulative timing.
-Store chosen timestamps in a shared projection used by renderers, pass outputs
-and validators.
-
-Native MUCOM88, MUCOM88 Windows and intended MSX/Makoto YM2608 playback
-require explicit compiler, MUB-format, bank, memory, clock and runtime checks.
-The inherited MUCOM document names MUCOMSX/MUBPLAY as the intended MSX route;
-this is a compatibility objective requiring separate verification, not proof
-that all generated MUB files already work there. This route is distinct from
-MGSDRV output in `msx_vgm2mml`.
-
-Use MUB-to-VGM replay where available to check identified target properties.
-Keep these checks subordinate to the musical output goal and separate from
-listening/native playback evidence.
-
-
-## 25. Whole gates, target controls and native evidence
-
-Whole FM gates own ordered internal trajectories; source continuity and State
-semantics define the gate, not emitted note spelling. Released parameter writes
-can affect an audible envelope and belong to source-linked control units. Keep
-zero-time native edges in source evidence and distinguish unsupported operator
-gates from ordinary held parameter changes.
-
-The shared source-plan solver may be reused across targets. Native repeat syntax,
-count/nesting limits and target command equivalence remain renderer decisions.
-When structure cannot be emitted, keep its catalog and report expansion.
-
-MUCOM native voice loading, volume and hardware-LFO commands can overwrite
-operator fields. Restore projected observed fields in the correct command order;
-DAT equality alone does not show the driver retained TL/AM flags. Validate real
-compiled native output independently, beyond compilation and generated commands.
-
-Use one target timeline across engines. A collapsed internal control interval is
-an explicitly reported timing loss, distinct from a lost whole gate. Diagnostics
-and roundtrip validators consume the recorded chosen clock, not a fixed template.
-Startup latency and loop-period projection are separate from source boundaries.
-
-
-## 26. Same-chip projection limits and ordered auxiliary actions
-
-YM2608 source parameters do not become invalid because a target renderer lacks
-syntax for them. Distinguish source validity, compiler limitations, missing
-musical projection and processing timeout in diagnostics. Preserve source values;
-prove target commands with native synthetic replay before relaxing restrictions.
-
-Partial operator masks are internal gate trajectories until a full-off boundary;
-source continuity IDs may change inside that whole gate. Preserve zero-time key
-order and compare actual native operator edges, beyond positive intervals.
-
-Percussion triggers naturally overlap. Timed hit/dump/control actions are distinct
-from one serial held note. Native driver-generated auxiliary writes must be
-identified; compiler success does not show they preserved envelope phase.
-
-Inactive PCM supplies and mixer-only metadata need not block FM/SSG rendering.
-Boundary-only decoder writes are distinct from positive-time continuation changes.
-Native target binding must retain the original codec bytes and source eligibility
-observations instead of rewriting the source IR to match target convenience.
-
-Index repeated membership lookups without altering evidence order, zero-time
-members or inclusive gate endpoints. Profile actual stage costs; a faster gate
-builder does not imply every large raw/state CSV pipeline is now fast.
-
-
-An explicit finite-song target option disables song-loop markers and seam timing
-constraints only at target projection. Retain declared source-loop evidence and
-first-traversal EOF timing; phrase-repeat compression is a separate policy.
-Validators use the recorded target song-loop policy to choose source iterations.
-
-
-## 27. Source structure and target-feasible repeat views
-
-Apply the shared source repeat planner inside whole sounding gates and released
-control trajectories as well as between musical units. New attacks and held
-controls are distinct source actions even when their register state is equal.
-A split at the target song-loop marker must not fabricate another attack.
-
-Keep native trees/catalogs and source memberships intact. A separate target view
-may add projected relative timing to native equality keys to choose an existing
-wider source repeat when a narrower repeat cannot retain target intervals.
-Each selected body must still match the native sequence and expand to the same
-ordered projected commands. Preserve each tree's own projection report, plus an
-explicit record of the selected view. Initial commands, zero-time actions, ties
-and loop entry/back edges remain part of semantic validation.
-
-Compose inner, outer and target-duration repeats before enforcing native depth.
-Retain the pre-limit selected form and record expansions; pre-limit selections
-are different from final emitted repeats. Compiler/driver setter compaction is
-target-specific and requires independent effective-state and native replay
-checks. Shared physical line formatting carries no chip/timing constraints.
-MUC character savings are not proof of MUB data-size savings.
-
-
-## 28. Shared normalization contract and native target allocation
-
-Share musical policies and source planners, not target clock or notation rules.
-The user-selected default normalization bound is8ms, floor352 original samples.
-It controls both explicit complete short-gate omission and maximum absolute
-source-to-target boundary movement. Full-mask closed isolated OPNA FM pairs can
-qualify; partial/repeated/unclosed keys and loop-crossing gates stay retained.
-A short internal control slice is never a short whole note. Non-key controls
-inside omitted gates and after earlier retained gates both remain eligible.
-
-Use an immutable output-only view while retaining native evidence, timestamps,
-Segment IDs, and PCM bytes. Validate source PCM eligibility and bind bank bytes
-before omission; independent observed-reset short decoder epochs may qualify,
-whereas inferred natural ends and EOF are not observed closures for this policy.
-All-omitted output retains finite elapsed song time. Report authorized loss.
-
-Share source attack-clock inference and the ordered integer-domain allocator.
-Each target supplies its own exact domains and constraints. MUCOM uses native
-Timer-B, origin0 and a C128 adapter for a nominated shared musical fit; do not
-import MGS confidence tolerances as output budgets. Protected intervals remain
-positive, short rests may coalesce with ordered off/on retained. Adopt policy
-and clock atomically, or restore full baseline explicitly. Renderers and native
-validators consume the same recorded map and omission identities, including
-original source event IDs across repeated source loops.
-
-Retain native structural catalogs alongside an accepted-clock semantic view.
-Normalized equality preserves attacks, held actions, voice/pitch/control order,
-and source membership; repeat expansion must equal the full projected command
-sequence. Chip-specific evidence adapters can differ without replacing shared
-planners with unrelated target-text heuristics. Public compiler success alone
-cannot show that released-envelope controls or source musical semantics survived.
-
-
-## 29. Boundary recovery and native driver initialization
-
-An unobserved initial FM pitch is not an invalid clock or automatically a short
-whole note. Resolve only a prefix with zero accepted target time, from a complete
-observed pitch in the same gate and clock. Preserve source values, identities,
-key order and donor evidence. Explicit initial key commands require initialized
-target pitch and a tied first positive note without an extra attack. Native
-previous-code0 invalidation collides with tied o1c code0; choose another exact
-note+detune decomposition in the target adapter, not a source pitch rewrite.
-
-SSG source-loop proof uses observed register assignments with both first-pass
-and inherited EOF seeds on the accepted map. Compare meaningful state across
-ALL positive intervals: an inactive register at entry can become relevant later.
-Retain shared raw controls, zero-time EOF state and source provenance. A restored
-same-clock fixed-envelope head can support split/continuation; delayed positive
-differences remain unsupported. Phase and cross-part bus ordering need separate
-checks; per-channel register proof is not universal waveform equivalence.
-
-SSG native D operates before octave shifting. Software E initialization changes
-live envelope phase: configure on attack, silence re-entry or HW->SW transition,
-not each held control. HW->SW needs a distinct output unit under this driver.
-Avoid overwriting shared noise state from tone-only lanes. Validate native
-period/mixer/volume trajectories over every interior interval, not only midpoints.
-
-Persist stage start metadata before work so timeouts retain usable evidence.
-Exact integer arithmetic may replace Fraction-heavy candidate loops only with
-independent rounding/domain/acceptance parity. Microbenchmarks do not establish
-private-song throughput or waive user-owned regression boundaries.
-
-
-# 30. PCM decoder epochs and live control projection
-
-Retain encoded source samples and immutable native control slices separately
-from the whole decoder playback epoch. A held rate/level/pan update is not a
-new sample attack. Source-derived nominal playback positions and inferred
-natural ends are another inspectable interpretation, never observed addresses
-or target-quantized source State. Target time/rate allocation needs its own
-position/exhaustion audit; omitted epochs must be identified as omissions.
-
-Chip-specific runtimes (SegaPCM address stepping versus Delta-T decoding) stay
-separate. Shared provenance/timeline principles do not make MSM6258/PDX or MUC
-a universal PCM IR. Reuse the existing source decoders/structure/normalization
-where their semantics apply; certify native live controls in the target adapter.
-Do not broadly waive an epoch diagnostic without checking changed registers
-and bits. Memory/address/data/reset/repeat changes require a distinct proof.
-
-The first target PCM note has decoder-initialization side effects. Protect its
-positive interval before live register updates; a zero-clock omitted attack can
-otherwise overwrite those updates. Keep installed compiler/replay profiles
-explicit, including their measured startup phase and supported MUC dialect.
+Losing that traceability requires strong justification. The design question
+is what musical behavior the source supports, what changes at each stage,
+and whether the interpretation/loss is intentional. A final target file
+alone cannot answer it.

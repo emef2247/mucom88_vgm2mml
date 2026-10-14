@@ -319,3 +319,31 @@ separate from outer-plan IDs. Check both `status=applied` and
 `target_selected=true` when identifying emitted children; source candidates
 remain inspectable even when their target spelling is rejected. Later sync or
 macro formatting may change the final spelling further.
+
+## Native source trees and target-feasible views
+
+Source planning and target syntax are separate. Apply source planners both
+between whole sounding units and inside held/released control trajectories
+where semantics permit. A new attack differs from a held action at the same
+state; splitting at a song-loop marker must not create another attack.
+Do not add state resets, quantization or unobserved envelope tails for folding.
+
+Retain native trees, the complete candidate catalog and source memberships.
+A separate target-feasible view may add projected relative timing to native
+equality keys and select a wider existing native repeat when a narrower repeat
+cannot preserve projected intervals. Both native equality and exact ordered
+expanded target commands are required. Keep each tree's own projection report
+and explicitly identify the chosen view; catalogs are not overwritten.
+
+Semantic validation includes initial/zero-time actions, ties, loop entries
+and back edges. Compose inner/outer/duration repeats before enforcing target
+count/depth limits. Preserve the pre-limit form and record expansions;
+selected repeat counts and final emitted counts are different measurements.
+Target setter compaction requires effective-state/native verification.
+Physical line wrapping adds no chip or timing constraint. Neither shorter
+MML nor successful compilation proves smaller compiled data or musical fidelity.
+
+Current MUC policies and pass names: [MUCOM projection](mucom_musical_projection.md).
+Normalized semantic views: [output normalization](output_normalization.md).
+This contract does not turn the inherited MGS algorithms above into MUC syntax
+or claim all chip adapters are interchangeable.

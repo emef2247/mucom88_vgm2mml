@@ -67,7 +67,8 @@ SCC adds `enabled`, `enable_register`, `previous_tone_period`,
 `volume_run_count`, `waveform_id`, and `waveform_hex`. `SccAnalysis` carries the
 entire waveform bank, including definitions not selected by a sounding Segment.
 An unavailable waveform is represented by an empty hex string; no waveform is
-invented. `pass3_row` also preserves the existing envelope-analysis columns.
+invented. Exact waveform-byte equality may support identity deduplication;
+stronger normalization needs explicit justification and preserved source bytes. `pass3_row` also preserves the existing envelope-analysis columns.
 
 Segments are frozen. MML repeat compression produces separate
 `(Segment, repeat_count)` pairs and never modifies or removes entries from the

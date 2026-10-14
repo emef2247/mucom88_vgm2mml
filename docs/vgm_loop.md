@@ -20,6 +20,17 @@ are loaded once, preserving stream block IDs on replay.
 The ordinary State/Segment builders interpret these ordered occurrences.
 Finite repetition discovery and target compaction reuse existing routines.
 
+## Source evidence versus target policies
+
+Reader replay, source loop facts and finite structural candidates remain distinct
+from target song-loop emission and finite phrase compression. A finite target
+keeps original loop metadata and first-traversal EOF evidence; it does not
+fabricate a Key edge or erase source structure. Startup latency and target loop
+period need independent checks. Validators select replay scope from the recorded
+target policy. [MUCOM timing and loops](mucom_musical_projection.md#時刻とループ)
+describe its adapter; the inherited MDX warm-up/PCM rules below do not apply
+universally to MUC or source Segments.
+
 ## Default MDX output
 
 Native OPM and musical PSG/SCC conversion request two source traversals.

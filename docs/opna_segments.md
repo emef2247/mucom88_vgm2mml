@@ -16,10 +16,11 @@ python -m unittest discover -s tests/scripts -p 'test_opna*.py' -v
 ```
 
 The reader CLI emits the existing chip artifacts and the new native FM dumps.
-The production `vgm2mml.py` detects OPNA commands and projects native FM
-Segments to OPM4MHz through `py/opna_opm.py`, then reuses the existing MDX
-converter. This target stage does not change the native analysis. OPNA is
-not an MGSDRV compatibility route.
+The default `vgm2mml.py` target is musical MUCOM88; see
+[MUCOM projection](mucom_musical_projection.md). The inherited explicit MDX
+route projects OPNA FM to OPM4MHz through `py/opna_opm.py` and reuses the MDX
+converter. Neither target stage changes this native analysis. OPNA is not
+an MGSDRV compatibility route.
 
 `parse_vgm` keeps its existing eight-path return tuple. Its independent new
 keyword arguments are `opna_metadata` and
@@ -106,9 +107,11 @@ control-state fields, without target tempo or frequency quantization.
 
 ## Limits and validation
 
-This initial implementation models **FM control-state Segments only**. SSG,
-OPNA rhythm and ADPCM-B remain named, ordered source evidence with diagnostics.
-PCM sample/Segment construction is a later stage. Reserved/unknown writes and
+The `opna.py` module models **FM control-state Segments only**. Its named,
+ordered SSG/rhythm/ADPCM evidence is complemented by separate source modules;
+see [SSG](opna_ssg.md), [ADPCM-B](opna_adpcm.md) and the current
+[MUCOM support scope](mucom_musical_projection.md). Those stages do not turn
+this module's FM intervals into a universal chip schema. Reserved/unknown writes and
 invalid key-channel requests remain explicit. Timer expiry, CSM-generated key
 edges, envelope output, acoustic release duration and LFO phase are not simulated;
 CSM observation is reported separately and `csm_edges_modeled=False` is exported.
@@ -152,13 +155,9 @@ python py/vgm_reader.py song.vgm outputs/opna-analysis
 ```
 
 The compiler reads UTF-8 MUC. `T120` is BPM, while `t120` is a Timer-B value;
-do not interchange them when checking durations. A self-authored embedded
-algorithm-7 voice with `A T120 @1 o4 v15 q0 c4 r4 d4 r4` produced two keyed
-intervals of 22050 samples each, at samples 0 and 44100, with total stream
-duration 88200. Reader evidence contains 50 writes, 67 State events and 67
-Segments; two attacks and eight operator rising/falling edges are retained.
-The initial rhythm-stop write remains unmodeled evidence. Local artifacts:
-`outputs/mucomvgm_source_smoke_2026-10-12/` (MUC, VGM, compiler log, passes,
-summary). This initial smoke check covers MUC -> VGM -> State/Segment.
-The subsequent Segment-to-MUCOMVGM projection and FM roundtrip are documented
-in `docs/opna_mucom_roundtrip.md`.
+do not interchange them when checking durations. Its virtual timing and
+command/pitch/PCM conventions do not define native MUCOM musical output.
+Use MUC-to-VGM checks to inspect source evidence; diagnostic register replay
+and [Segment-to-MUCOMVGM roundtrip](opna_mucom_roundtrip.md) are separate from
+musical MUC/native MUB validation. Dated smoke measurements are retained in
+the existing external `field_notes/2026-10-12_opna_source_segments.md`.

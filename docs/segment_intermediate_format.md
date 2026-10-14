@@ -1,5 +1,9 @@
 # Segment / Intermediate CSV Enhancement Requirements
 
+This document defines schema/design requirements, not a current support
+inventory. Current native formats are documented in the per-chip Segment
+documents; musical interpretation and target projection follow source analysis.
+
 ## 1. Goal
 
 Extend the current Segment and intermediate CSV architecture so that it can represent:
@@ -640,3 +644,12 @@ The goal is not maximum abstraction.
 The goal is **maximum traceability with useful semantic reuse**.
 
 
+## OPLL source semantics retained across targets
+
+OPLL pitch preserves FNUM/BLOCK. Source VOL0 is loudest and VOL15 quietest;
+do not substitute a conventional loudness scale without retaining the source.
+Writes need not put every parameter before Key-On. Keep the effective ordered
+state and custom-patch registers rather than substituting a similar preset.
+Rhythm triggers and channel6–8 pitch state remain source evidence. Melodic/
+rhythm track layouts in MGSDRV and future MUCOM mappings are target choices;
+neither may delete source Segments to match its layout.

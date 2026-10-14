@@ -1,5 +1,9 @@
 # Native PCM source evidence and target placement
 
+The MSM6258/MDX rules below describe an inherited adapter. They are not OPNA
+source rules or MUCOM bank constraints. Cross-chip contracts are specified in
+[decoder epochs](#decoder-epochs-and-cross-chip-boundaries) below.
+
 MSM6258 encoded sample identity uses codec plus exact supplied bytes. Decoder
 reset/continuation, rational nibble rate, raw pan and source timing belong to
 playback evidence, not sample identity. Hashes index candidates; actual bytes
@@ -113,3 +117,33 @@ Short packaging tails survive normalization; sample lengths follow the final
 shared clock. See `docs/segapcm_segments.md` for artifacts and known losses.
 
 
+## Decoder epochs and cross-chip boundaries
+
+Encoded identity is codec plus exact bytes, separate from memory location,
+playback identity, reset/continuation, cadence and controls. Native immutable
+control slices and a whole decoder epoch are different representations.
+Held rate/level/pan updates do not start a new sample attack.
+
+Retain source-derived nominal positions and inferred natural ends as a separate
+inspectable interpretation. They are not observed addresses/consumption, nor
+permission to replace native Segment boundaries with target-quantized time.
+Accepted target time/rate allocation requires a separate position/exhaustion
+audit; identify omitted epochs explicitly rather than pretending they played.
+Unknown runtime consumption cannot be proven by bytes or nominal duration.
+
+SegaPCM address stepping and OPNA Delta-T decoding stay chip-specific.
+Reuse source decoders, structure and normalization where meanings apply;
+neither MSM6258/PDX nor MUC becomes a universal PCM IR. A future cross-chip
+bridge retains native position/control evidence before projecting codec,
+gain/pan, rate/loop, channel capacity, bank and target playback behavior.
+
+Before waiving an epoch diagnostic, inspect changed registers and bits.
+Memory/address/data/reset/repeat changes require distinct proof; certification
+of one live level/pan/rate route is not broad permission to ignore controls.
+First-note decoder initialization and compiler/replay dialect/startup phase
+belong to a versioned target profile, with positive timing protection when
+initialization would otherwise overwrite live controls.
+
+Source details: [OPNA ADPCM-B](opna_adpcm.md), [SegaPCM](segapcm_segments.md).
+Current live-control commands, banks, first-note protection, installed profiles
+and unresolved MUCOM limits: [MUCOM PCM projection](mucom_musical_projection.md#pcm保持中制御と相互運用の境界).
