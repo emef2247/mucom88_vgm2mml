@@ -18,7 +18,7 @@ python vgm2mml.py input.vgm --outdir OUTPUT
 
 ターゲットの既定値は `mucom` で、`OUTPUT/input.muc` と、必要に応じて音色DATおよびADPCM-Bバンク、解析用CSV／JSONを生成します。`--outdir` を省略した場合の出力先は `outputs/` です。fixtureの検証には入力と異なる出力先を指定してください。
 
-VGM／VGZの実際のコマンドから使用音源を判定します。MUCOM88出力では、対応範囲内のOPNAのFM・SSG・リズム・ADPCM-Bを処理します。未対応の音源・組み合わせ・ストリームは診断情報として報告します。OPN／OPN2は対象外です。
+VGM／VGZの実際のコマンドから使用音源を判定します。MUCOM88出力では、対応範囲内のOPNAのFM・SSG・リズム・ADPCM-Bを処理します。未対応の音源・組み合わせ・ストリームは診断情報として報告します。
 
 ### 入力と出力
 
@@ -43,7 +43,7 @@ python scripts/export_mucom.py INPUT_DIRECTORY --outdir outputs/mucom88
 
 `tracks/` 以下に曲ごとのMUC・MUB・必要なバンク、`_diagnostics/` 以下に中間CSV／JSON・コンパイラログ・レポートを保存します。各曲の結果は `results.csv` で確認できます。MUCだけを一括生成する場合は `--muc-only` を指定してください。
 
-MUB生成にはMUCOM88 Windows 260407に同梱された `mucomDotNETConsole.exe` を使用します。PCM保持中制御の拡張命令が必要なMUCには、別配置した対応版mucomDotNETを自動選択します。外部工具はリポジトリに同梱しません。配置・導入方法は[PCM制御と工具の条件](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。別のコンパイラ配置は `--mucom88 <実行ファイル>` で指定できます。
+MUB生成にはMUCOM88 Windows 260407に同梱された `mucomDotNETConsole.exe` を使用します。PCM保持中制御の拡張命令が必要なMUCには、別配置した対応版mucomDotNETを自動選択します。外部工具はリポジトリに同梱しません。配置・導入方法は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。別のコンパイラ配置は `--mucom88 <実行ファイル>` で指定できます。
 
 生成したMUCや関連ファイルを手作業で編集した場合、一括出力ツールは上書きを拒否します。元の入力素材とは別の出力先を使用してください。
 
@@ -144,7 +144,7 @@ python scripts/export_mucom.py INPUT_DIRECTORY \
   --no-song-loop --timeout 600
 ```
 
-この指定でもMUC内の有限反復による構造化は維持します。未対応の音源機能やコンパイラの容量制限を解除する設定ではありません。詳細は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md)を参照してください。
+この指定でもMUC内の有限反復による構造化は維持します。詳細は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md)を参照してください。
 
 ## 構成
 
@@ -183,7 +183,7 @@ Licensed under the [MIT License](LICENSE).
 | [mucomDotNET](https://github.com/kuma4649/mucomDotNET) | MUC→MUBコンパイル、MUB→VGMによる比較、PCM保持中制御の検証 |
 | [MUCOMVGM](https://github.com/wingghost/MUCOMVGM) | `mucomvgm.exe`を使ったテスト用MUC→VGM生成、およびOPNA制御状態の検証 |
 | [x68k_vgm2mml](docs/integration_baseline.json) | VGM解析、Segment処理、MML構造化などの開発基盤 |
-| [vgm-conv](https://github.com/digital-sound-antiques/vgm-conv) | 継承したOPNA FM→OPM、PSG／SSG→OPMの対応方式の参照 |
+| [vgm-conv](https://github.com/digital-sound-antiques/vgm-conv) | [x68k_vgm2mml](docs/integration_baseline.json)から継承したコードに含まれるOPNA FM→OPM、PSG／SSG→OPMの対応方式の参照 |
 
 既定のMUCOM88出力ではOPMへの変換を行いません。vgm-convは継承経路で参照した方式であり、通常のMUCOM88変換の実行時依存ではありません。
 
