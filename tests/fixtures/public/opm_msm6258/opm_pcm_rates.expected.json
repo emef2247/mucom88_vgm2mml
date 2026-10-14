@@ -1,0 +1,33 @@
+{
+  "source_end_vgmticks": 3612,
+  "sample_bytes": [
+    128
+  ],
+  "sample_sha256": [
+    "a2a68d91e6cf202a3236056776f2e1963a0af9df4d51679f03aa625f0727335e"
+  ],
+  "playback_samples": [
+    0,
+    0
+  ],
+  "starts": [
+    0,
+    2890
+  ],
+  "ends": [
+    2890,
+    3612
+  ],
+  "mdx_frequencies": [
+    0,
+    4
+  ],
+  "source_pan": [
+    0,
+    0
+  ],
+  "mdx_pan": [
+    3,
+    3
+  ]
+}

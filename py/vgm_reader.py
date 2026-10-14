@@ -1,0 +1,1150 @@
+"""
+vgm_reader.py - Port of vgm_read.tcl + psg.tcl + scc.tcl
+Parse VGM and produce chip log/trace CSVs, including native OPM/OPNA writes.
+Usage: python vgm_reader.py <vgm_file> [output_dir]
+
+Log CSV  (*_log.scc.csv)  : events grouped by channel (Tcl scc.tcl output)
+Trace CSV (*_trace.scc.csv): events in chronological VGM-stream order (Tcl trace)
+
+All chip clocks share the VGM data-stream origin. Wait commands accumulate
+integer 44100 Hz samples before conversion to seconds.
+"""
+import struct
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(__file__))
+from mml_utils import get_ticks
+from vgm_io import read_vgm_header
+
+
+def _source_row(state, cols, width):
+    if state._include_vgmticks:
+        # OPLL has a legacy unnamed trailing header column.
+        cols += [''] * (width - len(cols))
+        cols.append('' if state._vgmticks is None else str(state._vgmticks))
+    return ','.join(cols)
+
+
+# ─────────────────────────────────────────────────────────────────
+# PSG state machine  (mirrors psg.tcl)
+# ─────────────────────────────────────────────────────────────────
+
+class _PsgState:
+    NUM_CH = 3
+
+    def __init__(self):
+        self._include_vgmticks = False
+        self._vgmticks = None
+        self._global_time = 0.0
+        self._common_time = 0.0
+
+        # registers (broadcast regs are stored per-channel for easy CSV output)
+        self.fCtrlA      = [85, 0, 0]    # ch0 initialises to 85
+        self.fCtrlB      = [0,  0, 0]
+        self.wNCtrl      = [0,  0, 0]
+        self.vVCtrl      = [187, 187, 187]
+        self.aVCtrl      = [0,  0, 0]
+        self.envPCtrlL   = [11, 11, 11]
+        self.envPCtrlM   = [0,  0, 0]
+        self.envShape    = [0,  0, 0]
+        self.ioParallel1 = [0,  0, 0]
+        self.ioParallel2 = [0,  0, 0]
+        self.psgMode     = [self._calc_mode(ch, 187) for ch in range(self.NUM_CH)]
+
+        self.log_buf = {ch: [] for ch in range(self.NUM_CH)}
+        self.trace_buf: list[str] = []   # chronological (all channels)
+
+    # ── time ────────────────────────────────────────────────────
+    def _update_time(self, time_s: float):
+        self._global_time = time_s
+        self._common_time = time_s
+
+    # ── PSG mode from vVCtrl ────────────────────────────────────
+    @staticmethod
+    def _calc_mode(ch: int, reg: int) -> int:
+        mask = 1 << ch            # 1, 2, 4 for ch 0, 1, 2
+        noise_mute = bool((reg >> 3) & mask)
+        tone_mute  = bool(reg & mask)
+        # noiseMute*2 + toneMute → 0→3, 1→2, 2→1, 3→0
+        return [3, 2, 1, 0][int(noise_mute) * 2 + int(tone_mute)]
+
+    # ── CSV row builder ─────────────────────────────────────────
+    def _row(self, ch: int, type_: str) -> str:
+        t     = self._common_time
+        ticks = get_ticks(t)
+        mode  = self.psgMode[ch]
+        cols = [
+            type_, repr(t), str(ch), str(ticks),
+            '', '', '', '', '', '', '', '',           # 4-11 empty
+            str(mode),
+            '', '', '', '', '', '', '', '', '', '', '',  # 13-23 empty
+            str(self.fCtrlA[ch]),
+            str(self.fCtrlB[ch]),
+            str(self.wNCtrl[ch]),
+            str(self.vVCtrl[ch]),
+            str(self.aVCtrl[ch]),
+            str(self.envPCtrlL[ch]),
+            str(self.envPCtrlM[ch]),
+            str(self.envShape[ch]),
+            str(self.ioParallel1[ch]),
+            str(self.ioParallel2[ch]),
+        ]
+        return _source_row(self, cols, 34)   # 34 fields
+
+    # ── main write entry point ───────────────────────────────────
+    def write(self, time_s: float, address: int, value: int):
+        self._update_time(time_s)
+        a = address
+        v = value
+
+        if   a == 0:  self._set_fCtrlA(0, v)
+        elif a == 1:  self._set_fCtrlB(0, v)
+        elif a == 2:  self._set_fCtrlA(1, v)
+        elif a == 3:  self._set_fCtrlB(1, v)
+        elif a == 4:  self._set_fCtrlA(2, v)
+        elif a == 5:  self._set_fCtrlB(2, v)
+        elif a == 6:
+            for ch in range(self.NUM_CH):
+                self._set_wNCtrl(ch, v)
+        elif a == 7:
+            for ch in range(self.NUM_CH):
+                self._set_vVCtrl(ch, v)
+        elif a == 8:  self._set_aVCtrl(0, v)
+        elif a == 9:  self._set_aVCtrl(1, v)
+        elif a == 10: self._set_aVCtrl(2, v)
+        elif a == 11:
+            for ch in range(self.NUM_CH):
+                self._set_envPCtrlL(ch, v)
+        elif a == 12:
+            for ch in range(self.NUM_CH):
+                self._set_envPCtrlM(ch, v)
+        elif a == 13:
+            for ch in range(self.NUM_CH):
+                self._set_envShape(ch, v)
+        elif a == 14:
+            for ch in range(self.NUM_CH):
+                self._set_ioParallel1(ch, v)
+        elif a == 15:
+            for ch in range(self.NUM_CH):
+                self._set_ioParallel2(ch, v)
+
+    def _set_fCtrlA(self, ch, v):
+        self.fCtrlA[ch] = v
+        row = self._row(ch, 'fCA')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_fCtrlB(self, ch, v):
+        self.fCtrlB[ch] = v
+        row = self._row(ch, 'fCB')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_wNCtrl(self, ch, v):
+        self.wNCtrl[ch] = v
+        row = self._row(ch, 'wNC')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_vVCtrl(self, ch, v):
+        self.vVCtrl[ch] = v
+        new_mode = self._calc_mode(ch, v)
+        if new_mode != self.psgMode[ch]:
+            self.psgMode[ch] = new_mode
+            row = self._row(ch, 'mode')
+            self.log_buf[ch].append(row)
+            self.trace_buf.append(row)
+
+    def _set_aVCtrl(self, ch, v):
+        self.aVCtrl[ch] = v
+        row = self._row(ch, 'aVC')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_envPCtrlL(self, ch, v):
+        self.envPCtrlL[ch] = v
+        row = self._row(ch, 'ePL')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_envPCtrlM(self, ch, v):
+        self.envPCtrlM[ch] = v
+        row = self._row(ch, 'evM')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_envShape(self, ch, v):
+        self.envShape[ch] = v
+        row = self._row(ch, 'evS')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_ioParallel1(self, ch, v):
+        self.ioParallel1[ch] = v
+        row = self._row(ch, 'ioP1')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _set_ioParallel2(self, ch, v):
+        self.ioParallel2[ch] = v
+        row = self._row(ch, 'ioP2')
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    # ── CSV output ───────────────────────────────────────────────
+    def output_csv(self, out_path: str):
+        hdr = ('#type,time,ch,ticks,l,fL,v,fV,f,fF,o,scale,en,fEn,vDiff,vCnt,'
+               'oDiff,envlp,envlpIndex,nE,nF,offset,data,wtbIndex,'
+               'fCtrlA,fCtrlB,wNCtrl,vVCtrl,aVCtrl,envPCtrlL,envPCtrlM,'
+               'envShape,ioParallel1,ioParallel2')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(hdr + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for ch in range(self.NUM_CH):
+                for row in self.log_buf[ch]:
+                    fh.write(row + '\n')
+                fh.write('\n')
+
+    def output_trace_csv(self, out_path: str):
+        """Write chronological trace CSV (all channels interleaved by time)."""
+        hdr = ('#type,time,ch,ticks,l,fL,v,fV,f,fF,o,scale,en,fEn,vDiff,vCnt,'
+               'oDiff,envlp,envlpIndex,nE,nF,offset,data,wtbIndex,'
+               'fCtrlA,fCtrlB,wNCtrl,vVCtrl,aVCtrl,envPCtrlL,envPCtrlM,'
+               'envShape,ioParallel1,ioParallel2')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(hdr + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for row in self.trace_buf:
+                fh.write(row + '\n')
+
+
+# ─────────────────────────────────────────────────────────────────
+# SCC state machine  (mirrors scc.tcl)
+# ─────────────────────────────────────────────────────────────────
+
+class _SccState:
+    NUM_CH = 5
+
+    def __init__(self):
+        self._include_vgmticks = False
+        self._vgmticks = None
+        self._global_time = 0.0
+        self._common_time = 0.0
+
+        self.f1Ctrl  = [0] * self.NUM_CH
+        self.f2Ctrl  = [0] * self.NUM_CH
+        self.vCtrl   = [0] * self.NUM_CH
+        self.enCtrl  = [0] * self.NUM_CH
+        self.enBit   = [0] * self.NUM_CH
+
+        self.wtb_offset = [0] * self.NUM_CH
+        self.wtb_last   = [0] * self.NUM_CH
+        self.wtbl_index = [0] * self.NUM_CH   # index into global table
+
+        # global registry of completed 32-byte waveforms (hex strings)
+        self._wtbl_bytes_list: list[str] = []
+        # current accumulating waveform (list of 2-char hex strings)
+        self._cur_wtbl: list[str] = []
+
+        self.log_buf = {ch: [] for ch in range(self.NUM_CH)}
+        self.trace_buf: list[str] = []   # chronological (all channels)
+
+    # ── time ────────────────────────────────────────────────────
+    def _update_time(self, time_s: float):
+        self._global_time = time_s
+        self._common_time = time_s
+
+    # ── SCC enable bit ───────────────────────────────────────────
+    @staticmethod
+    def _enable_bit(ch: int, reg: int) -> int:
+        ch_val = 1 << ch
+        return 1 if (reg & ch_val) == ch_val else 0
+
+    # ── wavetable helpers ────────────────────────────────────────
+    def _get_wtbl_index(self, key: str) -> int:
+        try:
+            return self._wtbl_bytes_list.index(key)
+        except ValueError:
+            return len(self._wtbl_bytes_list)
+
+    def _new_wavetable(self, ch: int, data: int):
+        self._cur_wtbl = [format(data & 0xFF, '02x')]
+        self.wtb_offset[ch] = 0
+
+    def _append_wavetable(self, ch: int, data: int):
+        self._cur_wtbl.append(format(data & 0xFF, '02x'))
+        self.wtb_offset[ch] = len(self._cur_wtbl) - 1
+        if len(self._cur_wtbl) == 32:
+            key = ''.join(self._cur_wtbl)
+            if key not in self._wtbl_bytes_list:
+                self._wtbl_bytes_list.append(key)
+            self.wtbl_index[ch] = self._get_wtbl_index(key)
+
+    # ── CSV row builder ─────────────────────────────────────────
+    def _row(self, ch: int, type_: str) -> str:
+        t     = self._common_time
+        ticks = get_ticks(t)
+        cols = [
+            type_, repr(t), str(ch), str(ticks),
+            '', '', '', '', '', '', '', '',          # 4-11 empty
+            str(self.enBit[ch]),
+            '', '', '', '', '', '', '', '',          # 13-20 empty
+            str(self.wtb_offset[ch]),
+            str(self.wtb_last[ch]),
+            str(self.wtbl_index[ch]),
+            str(self.f1Ctrl[ch]),
+            str(self.f2Ctrl[ch]),
+            str(self.vCtrl[ch]),
+            str(self.enCtrl[ch]),
+        ]
+        return _source_row(self, cols, 28)   # 28 fields
+
+    def _log(self, ch: int, type_: str):
+        """Append a row to both the per-channel log buffer and the trace buffer."""
+        row = self._row(ch, type_)
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    # ── main write entry point ───────────────────────────────────
+    def write_scc(self, time_s: float, address: int, value: int):
+        self._update_time(time_s)
+        a = address
+
+        # Wavetable ch0
+        if a == 0x9800:
+            ch = 0
+            self._new_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbNew')
+            return
+        if 0x9800 < a < 0x9820:
+            ch = 0
+            self._append_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbLast')
+            return
+        # Wavetable ch1
+        if a == 0x9820:
+            ch = 1
+            self._new_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbNew')
+            return
+        if 0x9820 < a < 0x9840:
+            ch = 1
+            self._append_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbLast')
+            return
+        # Wavetable ch2
+        if a == 0x9840:
+            ch = 2
+            self._new_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbNew')
+            return
+        if 0x9840 < a < 0x9860:
+            ch = 2
+            self._append_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbLast')
+            return
+        # Wavetable ch3
+        if a == 0x9860:
+            ch = 3
+            self._new_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbNew')
+            self.wtb_offset[4] = self.wtb_offset[3]
+            self.wtb_last[4] = value
+            self._log(4, 'wtbNew')
+            return
+        if 0x9860 < a < 0x9880:
+            ch = 3
+            self._append_wavetable(ch, value)
+            self.wtb_last[ch] = value
+            self._log(ch, 'wtbLast')
+            self.wtb_offset[4] = self.wtb_offset[3]
+            self.wtb_last[4] = value
+            self.wtbl_index[4] = self.wtbl_index[3]
+            self._log(4, 'wtbLast')
+            return
+
+        # Frequency registers
+        if   a == 0x9880: ch = 0; self.f1Ctrl[ch] = value; self._log(ch, 'f1Ctrl'); return
+        if   a == 0x9881: ch = 0; self.f2Ctrl[ch] = value; self._log(ch, 'f2Ctrl'); return
+        if   a == 0x9882: ch = 1; self.f1Ctrl[ch] = value; self._log(ch, 'f1Ctrl'); return
+        if   a == 0x9883: ch = 1; self.f2Ctrl[ch] = value; self._log(ch, 'f2Ctrl'); return
+        if   a == 0x9884: ch = 2; self.f1Ctrl[ch] = value; self._log(ch, 'f1Ctrl'); return
+        if   a == 0x9885: ch = 2; self.f2Ctrl[ch] = value; self._log(ch, 'f2Ctrl'); return
+        if   a == 0x9886: ch = 3; self.f1Ctrl[ch] = value; self._log(ch, 'f1Ctrl'); return
+        if   a == 0x9887: ch = 3; self.f2Ctrl[ch] = value; self._log(ch, 'f2Ctrl'); return
+        if   a == 0x9888: ch = 4; self.f1Ctrl[ch] = value; self._log(ch, 'f1Ctrl'); return
+        if   a == 0x9889: ch = 4; self.f2Ctrl[ch] = value; self._log(ch, 'f2Ctrl'); return
+
+        # Volume registers
+        if   a == 0x988A: ch = 0; self.vCtrl[ch] = value; self._log(ch, 'vCtrl'); return
+        if   a == 0x988B: ch = 1; self.vCtrl[ch] = value; self._log(ch, 'vCtrl'); return
+        if   a == 0x988C: ch = 2; self.vCtrl[ch] = value; self._log(ch, 'vCtrl'); return
+        if   a == 0x988D: ch = 3; self.vCtrl[ch] = value; self._log(ch, 'vCtrl'); return
+        if   a == 0x988E: ch = 4; self.vCtrl[ch] = value; self._log(ch, 'vCtrl'); return
+
+        # Enable register (broadcast)
+        if a == 0x988F:
+            for ch in range(self.NUM_CH):
+                self.enCtrl[ch] = value
+                new_bit = self._enable_bit(ch, value)
+                if new_bit != self.enBit[ch]:
+                    self.enBit[ch] = new_bit
+                    self._log(ch, 'enBit')
+
+    # ── CSV output ───────────────────────────────────────────────
+    def output_csv(self, out_path: str):
+        """Write per-channel grouped log CSV (Tcl *_log.scc.csv format)."""
+        hdr = ('#type,time,ch,ticks,l,fL,v,fV,f,fF,o,scale,en,fEn,vDiff,vCnt,'
+               'oDiff,envlp,envlpIndex,nE,nF,offset,data,wtblIndex,'
+               'f1Ctrl,f2Ctrl,vCtrl,enCtrl')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(hdr + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for ch in range(self.NUM_CH):
+                for row in self.log_buf[ch]:
+                    fh.write(row + '\n')
+                fh.write('\n')
+
+    def output_trace_csv(self, out_path: str):
+        """Write chronological trace CSV (Tcl *_trace.scc.csv format)."""
+        hdr = ('#type,time,ch,ticks,l,fL,v,fV,f,fF,o,scale,en,fEn,vDiff,vCnt,'
+               'oDiff,envlp,envlpIndex,nE,nF,offset,data,wtblIndex,'
+               'f1Ctrl,f2Ctrl,vCtrl,enCtrl')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(hdr + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for row in self.trace_buf:
+                fh.write(row + '\n')
+
+
+# ─────────────────────────────────────────────────────────────────
+# OPLL (YM2413) state machine  – melody channels 0..5 (+ ch6..8 in regs)
+# ─────────────────────────────────────────────────────────────────
+class _OpllState:
+    """Track YM2413 (OPLL) register state and emit chronological trace CSVs.
+
+    YM2413 register map coverage
+    ─────────────────────────────
+    0x00–0x07  user instrument (patch) parameters
+    0x0E       rhythm control: bit5=rhythm-mode, bits0–4=rhythm instruments
+    0x0F       test register (usually 0)
+    0x10–0x18  F-Number low 8 bits  (ch0..8; ch0..5=melody, ch6..8=rhythm)
+    0x20–0x28  Fnum MSB + Block + KeyOn + Sustain
+    0x30–0x35  Instrument select + volume (melody ch0..5)
+    0x36–0x38  Rhythm channel volumes (ch6=BD, ch7=HH/SD, ch8=TOM/CYM)
+
+    Existing trace CSV (*_trace.opll.csv) – kept unchanged for opll_mml.py
+    ──────────────────────────────────────────────────────────────────────
+    Columns (9):  type, time, ch, ticks, keyon, fnum, block, inst, vol
+    Only melody channels 0..5 are emitted here.
+
+    Extended register trace CSV (*_trace.opll_regs.csv) – NEW
+    ──────────────────────────────────────────────────────────
+    Columns (6):  type, time, ticks, addr, val, ch
+      type  – usrPat (0x00-0x07), rhythm (0x0E), test (0x0F),
+               fNumL (0x10-0x18), keyBlk (0x20-0x28), instVol (0x30-0x38)
+      addr  – register address in hex (e.g. 0x10)
+      val   – written value (decimal)
+      ch    – channel 0..8, or -1 for global registers (usrPat, rhythm, test)
+    All YM2413 writes are captured here so that nothing is lost.
+
+    Voice CSV (*_trace.opll_voice.csv) – unchanged
+    ───────────────────────────────────────────────
+    Columns (7):  type, time, ch, ticks, inst, vol, patch_hex
+      type='patch'   – user-patch register update (ch=-1, global)
+      type='instVol' – per-channel inst/vol change with current patch snapshot
+    """
+
+    NUM_CH = 9   # 0..8:melody+rhythm
+
+    _HEADER = ('#type,time,ch,ticks,l,fl,kl,vl,beat_pos,beat,fb,kb,vb,keyon,is_legato,is_vibrato,is_portamento,is_envelope,fnum,block,inst,vol,sus,scale,ioi,onset,tempo,'
+               'is_ryt,r_tempo,r_ioi,r_mode_ioi,r_hh_ioi,r_hh_mode_ioi,BdSdTomTcHH,'
+               'bd,sd,tom,tc,hh,'
+               'bd_vol,sd_vol,tom_vol,tc_vol,hh_vol,'
+               'fnum_ch6,vol_ch6,sus_ch6,block_ch6,'
+               'fnum_ch7,vol_ch7,sus_ch7,block_ch7,'
+               'fnum_ch8,vol_ch8,sus_ch8,block_ch8,')
+    _VOICE_HEADER = '#type,time,ch,ticks,inst,vol,patch_hex'
+    _REGS_HEADER  = '#type,time,ticks,addr,val,ch'
+
+    def __init__(self):
+        self._include_vgmticks = False
+        self._vgmticks = None
+        self._global_time = 0.0
+        self._common_time = 0.0
+        self.fnum_low = [0] * self.NUM_CH   # 0x10-0x18 LSB (all ch)
+        self.fnum_msb = [0] * self.NUM_CH   # keyBlk[0]...keyBlk[8] LSB (all ch)
+        self.sus      = [0] * self.NUM_CH   # sustain bit (keyBlk)
+        self.block    = [0] * self.NUM_CH   # block bit (keyBlk)
+        self.key_blk  = [0] * self.NUM_CH   # 0x20-0x28
+        self.inst_vol = [0] * self.NUM_CH   # 0x30-0x38
+        self.user_patch = [0] * 8
+        self.rhythm_mode = 0
+        self.rhythm_history = []
+        self.log_buf = {ch: [] for ch in range(self.NUM_CH)}
+        self.trace_buf: list[str] = []
+        self.voice_trace_buf: list[str] = []
+        self.regs_trace_buf: list[str] = []
+
+    def _update_time(self, time_s: float):
+        self._global_time = time_s
+        self._common_time = time_s
+
+    def fnum9(self, ch: int) -> int:
+        """Assembled OPLL 9bit F-Number (all ch, will be 0 if not set)."""
+        return (self.fnum_low[ch] & 0xFF) | ((self.fnum_msb[ch] & 0x01) << 8)
+
+    def _block(self, ch: int) -> int:
+        return (self.key_blk[ch] >> 1) & 0x07
+
+    def _keyon(self, ch: int) -> int:
+        return (self.key_blk[ch] >> 4) & 0x01
+    
+    def _sus(self, ch: int) -> int:
+        return (self.key_blk[ch] >> 5) & 0x01
+
+    def _inst(self, ch: int) -> int:
+        return (self.inst_vol[ch] >> 4) & 0x0F
+
+    def _vol(self, ch: int) -> int:
+        if self.rhythm_mode & ch >= 6:
+            return self.inst_vol[ch] & 0xFF
+        else:
+            return self.inst_vol[ch] & 0x0F
+
+    def _bd_vol(self) -> int:
+        return self.inst_vol[6] & 0x0F
+
+    def _sd_vol(self) -> int:
+        return self.inst_vol[7] & 0x0F
+
+    def _hh_vol(self) -> int:
+        return (self.inst_vol[7] >> 4) & 0x0F
+
+    def _tc_vol(self) -> int:
+        return self.inst_vol[8] & 0x0F
+
+    def _tom_vol(self) -> int:
+        return (self.inst_vol[8] >> 4) & 0x0F
+
+    def _patch_hex(self) -> str:
+        return ''.join(f'{b:02x}' for b in self.user_patch)
+
+    @staticmethod
+    def _decode_rhythm_bits(regval):
+        is_ryt = (regval >> 5) & 1
+        bits = regval & 0x1F
+        bd  = (bits >> 4) & 1
+        sd  = (bits >> 3) & 1
+        tom = (bits >> 2) & 1
+        tc  = (bits >> 1) & 1
+        hh  = (bits >> 0) & 1
+        return is_ryt, bd, sd, tom, tc, hh
+
+    def _rhythm_fields_at_tick(self, ticks):
+        last_val = 0
+        for t, v in self.rhythm_history:
+            if t > ticks:
+                break
+            last_val = v
+        return self._decode_rhythm_bits(last_val)
+
+    def _row(self, ch: int, type_: str) -> str:
+        t     = self._common_time
+        ticks = get_ticks(t)
+        is_ryt, bd, sd, tom, tc, hh = self._rhythm_fields_at_tick(ticks)
+        cols = [
+            type_, repr(t), str(ch), str(ticks),'','','','','','','','','',
+            str(self._keyon(ch)),
+            '','','','',
+            str(self.fnum9(ch)),
+            str(self._block(ch)),
+            str(self._inst(ch)),
+            str(self._vol(ch)),
+            str(self._sus(ch)),
+            '','','','',
+            str(is_ryt),'','','','','','',
+            '', '', '', '', '',
+            '', '', '', '', '',
+            '', '', '', '',
+            '', '', '', '',
+            '', '', '', '',
+        ]
+        return _source_row(self, cols, 57)
+
+    def _row_rhythm_vol(self, ch: int, type_: str) -> str:
+        t     = self._common_time
+        ticks = get_ticks(t)
+        is_ryt, bd, sd, tom, tc, hh = self._rhythm_fields_at_tick(ticks)
+        cols = [
+            type_, repr(t), str(ch), str(ticks),'','','', '', '', '', '', '', '','','','','','','','','','','','','','','',
+            str(is_ryt),'','','','','','',
+            '', '', '', '', '',
+            str(self._bd_vol()), str(self._sd_vol()), str(self._tom_vol()), str(self._tc_vol()), str(self._hh_vol()),
+            '', '', '', '',
+            '', '', '', '',
+            '', '', '', '',
+        ]
+        return _source_row(self, cols, 57)
+
+    def _log(self, ch: int, type_: str):
+        row = self._row(ch, type_)
+        self.log_buf[ch].append(row)
+        self.trace_buf.append(row)
+
+    def _log_rhythm_vol(self, ch: int, type_: str):
+        row = self._row_rhythm_vol(ch, type_)
+        self.trace_buf.append(row)
+
+    def _log_rhythm_event(self, type_: str, regval: int):
+        t     = self._common_time
+        ticks = get_ticks(t)
+        BdSdTomTcHH = f"0x{(regval & 0x1F):02X}"
+        is_ryt, bd, sd, tom, tc, hh = self._decode_rhythm_bits(regval)
+        cols = [
+            type_, repr(t), '-1', str(ticks),'','','', '', '', '', '', '', '','','','','','','','','','','','','','','',
+            str(is_ryt),'','','','','',BdSdTomTcHH,
+            str(bd), str(sd), str(tom), str(tc), str(hh),
+            str(self._bd_vol()), str(self._sd_vol()), str(self._tom_vol()), str(self._tc_vol()), str(self._hh_vol()),
+            str(self.fnum9(6)), str(self._vol(6)), str(self._sus(6)), str(self._block(6)),
+            str(self.fnum9(7)), str(self._vol(7)), str(self._sus(7)), str(self._block(7)),
+            str(self.fnum9(8)), str(self._vol(8)), str(self._sus(8)), str(self._block(8)),
+        ]
+        self.trace_buf.append(_source_row(self, cols, 57))
+
+    def _voice_row(self, type_: str, ch: int, inst: int, vol: int) -> str:
+        t     = self._common_time
+        ticks = get_ticks(t)
+        cols = [
+            type_, repr(t), str(ch), str(ticks),
+            str(inst), str(vol), self._patch_hex(),
+        ]
+        return _source_row(self, cols, 7)
+
+    def _regs_row(self, type_: str, addr: int, val: int, ch: int) -> str:
+        t = self._common_time
+        ticks = get_ticks(t)
+        cols = [type_, repr(t), str(ticks), f'0x{addr:02X}', str(val), str(ch)]
+        return _source_row(self, cols, 6)
+
+    def write(self, time_s: float, address: int, value: int):
+        self._update_time(time_s)
+        a = address
+        v = value
+
+        _ch = -1
+        _type = 'raw'
+
+        if 0x00 <= a <= 0x07:
+            _type, _ch = 'usrPat', -1
+            self.user_patch[a] = v & 0xFF
+            row = self._voice_row('patch', -1, 0, 0)
+            self.voice_trace_buf.append(row)
+
+        elif a == 0x0E:
+            # rhythm control (bit5 = rhythm_mode)
+            _type, _ch = 'rhythm', -1
+
+        elif a == 0x0F:
+            _type, _ch = 'test', -1
+
+        elif 0x10 <= a <= 0x18:
+            ch = a - 0x10
+            _type, _ch = 'fNumL', ch
+            self.fnum_low[ch] = v & 0xFF
+
+            # ch6–8: rhythm_mode=1 のときは記録しない
+            if not (self.rhythm_mode and ch >= 6):
+                self._log(ch, 'fNumL')
+
+        elif 0x20 <= a <= 0x28:
+            ch = a - 0x20
+            _type, _ch = 'keyBlk', ch
+            self.key_blk[ch]  = v & 0x3F
+            self.fnum_msb[ch] = v & 0x01
+            self.sus[ch]      = (v >> 5) & 0x01
+            self.block[ch]    = (v >> 1) & 0x07
+
+            # ch6–8: rhythm_mode=1 の時は記録しない
+            if not (self.rhythm_mode and ch >= 6):
+                self._log(ch, 'keyBlk')
+
+        elif 0x30 <= a <= 0x38:
+            ch = a - 0x30
+            if not self.rhythm_mode:
+                _type, _ch = 'instVol', ch
+                self.inst_vol[ch] = v & 0xFF
+                self._log(ch, 'instVol')
+                row = self._voice_row('instVol', ch, self._inst(ch), self._vol(ch))
+                self.voice_trace_buf.append(row)
+            elif ch < 6:
+                _type, _ch = 'instVol', ch
+                self.inst_vol[ch] = v & 0xFF
+                self._log(ch, 'instVol')
+                row = self._voice_row('instVol', ch, self._inst(ch), self._vol(ch))
+                self.voice_trace_buf.append(row)
+            else :
+                _type, _ch = 'rhythmVol', ch
+                self.inst_vol[ch] = v & 0xFF
+                self._log_rhythm_vol(ch, 'rhythmVol')
+
+        # 全レジスタの生トレース
+        self.regs_trace_buf.append(self._regs_row(_type, a, v, _ch))
+
+        # Rhythm レジスタ (0x0E) の実処理
+        if a == 0x0E:
+            self.rhythm_mode = (v >> 5) & 1
+            t = self._common_time
+            ticks = get_ticks(t)
+            self.rhythm_history.append((ticks, v))
+            self._log_rhythm_event('rhythm', v)
+
+
+    def output_trace_csv(self, out_path: str):
+        header = self._HEADER + (',vgmticks' if self._include_vgmticks else '')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(header + '\n')
+            for row in self.trace_buf:
+                fh.write(row + '\n')
+
+    def output_log_csv(self, out_path: str):
+        header = self._HEADER + (',vgmticks' if self._include_vgmticks else '')
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(header + '\n')
+            for ch in range(self.NUM_CH):
+                for row in self.log_buf[ch]:
+                    fh.write(row + '\n')
+                fh.write('\n')
+
+    def output_voice_csv(self, out_path: str):
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(self._VOICE_HEADER + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for row in self.voice_trace_buf:
+                fh.write(row + '\n')
+
+    def output_regs_csv(self, out_path: str):
+        with open(out_path, 'w', newline='\n') as fh:
+            fh.write(self._REGS_HEADER + (',vgmticks' if self._include_vgmticks else '') + '\n')
+            for row in self.regs_trace_buf:
+                fh.write(row + '\n')
+
+# ─────────────────────────────────────────────────────────────────
+# VGM parser
+# ─────────────────────────────────────────────────────────────────
+
+class _OpmTrace:
+    """Source writes only; operator state and musical interpretation come later."""
+
+    fields = ('event_id', 'address', 'command', 'vgmticks', 'time',
+              'chip_instance', 'chip_type', 'clock_hz', 'clock_raw',
+              'register', 'data', 'ch', 'register_scope',
+              'original_event_id', 'loop_iteration', 'original_vgmticks')
+
+    def __init__(self, raw, version):
+        clock_offset = 0x30 if version >= 0x110 else 0x10
+        self.clock_raw = struct.unpack_from('<I', raw, clock_offset)[0]
+        self.clock_hz = self.clock_raw & 0x3fffffff
+        self.dual_chip = version >= 0x151 and bool(self.clock_raw & 0x40000000)
+        self.chip_type = ('YM2164' if version >= 0x151
+                          and self.clock_raw & 0x80000000 else 'YM2151')
+        self.rows = []
+
+    def write(self, event_id, event, register, data, instance):
+        if not self.clock_hz or (instance and not self.dual_chip):
+            return
+        from opm import register_channel
+        ch = register_channel(register, data)
+        scope = ('shared' if ch is None else 'key' if register == 8
+                 else 'noise' if register == 15 else 'channel'
+                 if register < 64 else 'operator')
+        self.rows.append((event_id, event.address, event.command, event.vgmticks,
+                          event.vgmticks / 44100.0, instance, self.chip_type,
+                          self.clock_hz, self.clock_raw, register, data, ch, scope,
+                          event.source_event_id, event.loop_iteration, event.original_vgmticks))
+
+    def output_csv(self, path):
+        import csv
+        with open(path, 'w', encoding='utf-8', newline='') as stream:
+            writer = csv.writer(stream)
+            writer.writerow(self.fields)
+            writer.writerows(self.rows)
+
+
+class _OpnaTrace:
+    """Ordered source evidence; native interpretation belongs to opna."""
+
+    fields = ('event_id', 'address', 'command', 'vgmticks', 'time',
+              'chip_instance', 'chip_type', 'clock_hz', 'clock_raw', 'port',
+              'register', 'data', 'ch', 'register_scope',
+              'original_event_id', 'loop_iteration', 'original_vgmticks')
+
+    def __init__(self, header):
+        self.family = 'opna'
+        self.chip_type = 'YM2608'
+        self.clock_raw = header['opna_clock_raw']
+        self.clock_hz = self.clock_raw & 0x3fffffff
+        self.dual_chip = bool(self.clock_raw & 0x40000000)
+        self.ssg_flags = header['opna_ssg_flags']
+        self.extra_header_offset = header['extra_header_offset']
+        self.rows = []
+        self.issues = []
+        self.auxiliary_commands = []
+
+    def write(self, event_id, event, register, data, port, instance):
+        from importlib import import_module
+        module = import_module(self.family)
+        ch = module.register_channel(register, data, port=port)
+        role = module.register_role(register, port=port)
+        self.rows.append((event_id, event.address, event.command, event.vgmticks,
+                          event.vgmticks / 44100.0, instance, self.chip_type,
+                          self.clock_hz, self.clock_raw, port, register, data, ch, role,
+                          event.source_event_id, event.loop_iteration, event.original_vgmticks))
+        if not self.clock_hz:
+            self.issues.append(dict(code='undeclared_chip', source_event_id=event_id,
+                                    vgmticks=event.vgmticks, chip_instance=instance))
+        elif instance and not self.dual_chip:
+            self.issues.append(dict(code='undeclared_second_chip', source_event_id=event_id,
+                                    vgmticks=event.vgmticks, chip_instance=instance))
+        elif instance and self.extra_header_offset:
+            self.issues.append(dict(code='extra_header_second_clock_unmodeled',
+                                    source_event_id=event_id, vgmticks=event.vgmticks,
+                                    chip_instance=instance))
+
+    def auxiliary(self, event_id, event, operands, domain):
+        self.auxiliary_commands.append(dict(
+            source_event_id=event_id, address=event.address, command=event.command,
+            vgmticks=event.vgmticks, domain=domain, operands_hex=operands.hex(),
+            original_event_id=event.source_event_id, loop_iteration=event.loop_iteration,
+            original_vgmticks=event.original_vgmticks))
+
+    def output_csv(self, path):
+        import csv
+        with open(path, 'w', encoding='utf-8', newline='') as stream:
+            writer = csv.writer(stream, lineterminator='\n')
+            writer.writerow(self.fields)
+            writer.writerows(self.rows)
+
+    def output(self, output_dir, stem, end, metadata, dump_segments):
+        from importlib import import_module
+        import json
+        regs = state = segments = None
+        analysis = None
+        if self.clock_hz or self.rows:
+            regs = os.path.join(output_dir, f'{stem}_trace.{self.family}_regs.csv')
+            self.output_csv(regs)
+        facts = dict(csv_path=regs, clock_raw=self.clock_raw, clock_hz=self.clock_hz,
+                     dual_chip=self.dual_chip, chip_type=self.chip_type,
+                     ssg_flags=self.ssg_flags, write_count=len(self.rows),
+                     source_end_vgmticks=end, state_csv_path=None, segments_csv_path=None,
+                     key_counts=None, analysis=None, issues=tuple(self.issues),
+                     unmodeled_csv_path=None, auxiliary_csv_path=None,
+                     auxiliary_commands=tuple(self.auxiliary_commands), manifest_path=None)
+        if self.auxiliary_commands:
+            import csv
+            auxiliary_csv = os.path.join(output_dir, f'{stem}.{self.family}.auxiliary.csv')
+            with open(auxiliary_csv, 'w', encoding='utf-8', newline='') as stream:
+                writer = csv.DictWriter(stream, fieldnames=list(self.auxiliary_commands[0]),
+                                        lineterminator='\n')
+                writer.writeheader()
+                writer.writerows(self.auxiliary_commands)
+            facts.update(auxiliary_csv_path=auxiliary_csv,
+                         issues=tuple(self.issues) + ('auxiliary_source_commands_unmodeled',))
+        manifest = os.path.join(output_dir, f'{stem}.{self.family}.analysis.json')
+
+        def save_manifest(status):
+            if not (regs or self.auxiliary_commands or os.path.isfile(manifest)):
+                return
+            facts['manifest_path'] = manifest
+            paths = ('csv_path', 'state_csv_path', 'segments_csv_path',
+                     'unmodeled_csv_path', 'auxiliary_csv_path')
+            report = dict(chip_type=self.chip_type, clock_raw=self.clock_raw,
+                          source_end_vgmticks=end, write_count=len(self.rows),
+                          fm_analysis_status=status, issues=facts['issues'],
+                          current_files=[facts[p] for p in paths if facts[p] is not None])
+            with open(manifest, 'w', encoding='utf-8') as stream:
+                json.dump(report, stream, ensure_ascii=False, indent=2)
+                stream.write('\n')
+
+        save_manifest('raw_only' if regs else 'no_register_writes')
+        if metadata is not None:
+            metadata.update(facts)
+        if regs and dump_segments:
+            if self.issues:
+                save_manifest('rejected_source_declaration')
+                raise ValueError(f'{self.chip_type} writes use an undeclared chip/instance '
+                                 f'or an unsupported second clock; '
+                                 f'raw evidence retained in {regs}')
+            module = import_module(self.family)
+            try:
+                analysis = module.build_segments(regs, end_vgmticks=end)
+            except ValueError as error:
+                facts['issues'] = tuple(facts['issues']) + (str(error),)
+                save_manifest('rejected_register_evidence')
+                if metadata is not None:
+                    metadata.update(facts)
+                raise
+            state = os.path.join(output_dir, f'{stem}_trace.{self.family}.csv')
+            segments = os.path.join(output_dir, f'{stem}.{self.family}.segments.csv')
+            module.dump_analysis(analysis, state_csv=state, segments_csv=segments)
+            unmodeled = os.path.join(output_dir, f'{stem}.{self.family}.unmodeled.csv')
+            module.dump_unmodeled_writes(analysis, csv_path=unmodeled)
+            facts.update(state_csv_path=state, segments_csv_path=segments,
+                         key_counts=module.key_counts(analysis), analysis=analysis,
+                         unmodeled_csv_path=unmodeled,
+                         issues=tuple(facts['issues']) + tuple(analysis.issues))
+            save_manifest('fm_control_state')
+            if metadata is not None:
+                metadata.update(facts)
+
+
+def parse_vgm(vgm_path: str, output_dir: str | None = None, *,
+              loop_metadata: dict | None = None, dump_loop: bool = False,
+              include_vgmticks: bool = False,
+              opm_metadata: dict | None = None,
+              pcm_metadata: dict | None = None,
+              opna_metadata: dict | None = None,
+              opna_pcm_metadata: dict | None = None,
+              segapcm_metadata: dict | None = None,
+              segapcm_trace_out: list | None = None,
+              dump_segapcm_segments: bool = False,
+              dump_opna_segments: bool = False,
+              dump_opm_segments: bool = False, loop_count: int = 1) -> tuple[str, str, str, str, str, str, str, str]:
+    """
+    Parse VGM and write PSG/SCC/OPLL traces plus native FM raw writes.
+
+    Returns:
+        (psg_log_csv, scc_log_csv, psg_trace_csv, scc_trace_csv,
+         opll_log_csv, opll_trace_csv, opll_voice_csv, opll_regs_csv)
+
+    All waits count toward one absolute source clock shared by all chips.
+    Optional loop_metadata receives independently inspected source-loop facts;
+    dump_loop writes them to <stem>.vgm.loop.csv. include_vgmticks appends
+    integer sample boundaries without changing rendering or quantizing time.
+    Declared OPM chips also produce <stem>_trace.opm_regs.csv with ordered raw
+    writes and unconditional sample timestamps. Optional opm_metadata receives
+    its path, clock/variant facts, write count and source end. The eight legacy
+    return paths remain unchanged; OPM Segment/MML interpretation is separate.
+    dump_opm_segments reconstructs native state intervals and dumps their CSVs;
+    it does not project OPM into a target chip or MML dialect.
+    OPNA metadata and dump flag use the same native
+    source end and unchanged legacy return tuple. All OPNA register writes
+    remain in raw CSVs, including non-FM and undeclared-instance evidence.
+    Segment dumps currently reconstruct FM only; other domains are diagnosed.
+    Optional opna_pcm_metadata receives independent native ADPCM-B memory and
+    playback analysis; it does not convert that codec into MSM6258 bytes.
+    Optional segapcm_metadata or dump_segapcm_segments writes native SegaPCM
+    raw/ROM evidence and write-observed control intervals, without emulating
+    runtime sample addresses or projecting PCM into PDX.
+    """
+    from vgm_io import read_vgm_bytes
+    raw = read_vgm_bytes(vgm_path)
+    if len(raw) < 0x40 or raw[:4] != b'Vgm ':
+        raise ValueError('Invalid or truncated VGM header')
+
+    from vgm_loop import read_loop_metadata, dump_loop_metadata
+    metadata = read_loop_metadata(raw)
+    if loop_metadata is not None:
+        loop_metadata.update(metadata)
+
+    # ── Header ──────────────────────────────────────────────────
+    header = read_vgm_header(raw)
+    if pcm_metadata is not None:
+        from msm6258 import analyze
+        pcm_metadata.update(analysis=analyze(raw, loop_count=loop_count),
+                            clock_raw=header['msm6258_clock_raw'],
+                            flags=header['msm6258_flags'])
+    vgm_version = header['version']
+    data_start = header['data_start']
+    # Clock zero means absent; extended fields never read command bytes.
+    has_k051649 = bool(header['scc_clock_raw'] & 0x3fffffff)
+
+    # ── Process data stream ──────────────────────────────────────
+    psg  = _PsgState()
+    scc  = _SccState()
+    opll = _OpllState()
+    opm = _OpmTrace(raw, vgm_version)
+    opna = _OpnaTrace(header)
+    from segapcm import SegaPcmTrace
+    segapcm = SegaPcmTrace(header)
+    from vgm_timing import command_times
+    source_times = []
+    replay_start_event_id = None
+    loop_start_event_id = None
+    replay_ends = {}
+    opna_streams = {}
+    for state in (psg, scc, opll):
+        state._include_vgmticks = include_vgmticks
+    for event_id, event in enumerate(command_times(raw, loop_count=loop_count)):
+        if include_vgmticks:
+            source_times.append(event)
+        if event.loop_iteration == 0 and event.address == metadata['loop_address']:
+            loop_start_event_id = event_id
+        if event.loop_iteration and replay_start_event_id is None:
+            replay_start_event_id = event_id
+        replay_ends[event.loop_iteration] = event.vgmticks + event.wait_samples
+        for state in (psg, scc, opll):
+            state._vgmticks = event.vgmticks
+        global_time = event.vgmticks / 44100.0
+        cmd, pos = event.command, event.address + 1
+        if cmd == 0x66:
+            break
+        if cmd == 0xA0:
+            psg.write(global_time, raw[pos], raw[pos + 1])
+        elif cmd == 0x51:
+            opll.write(global_time, raw[pos], raw[pos + 1])
+        elif cmd in (0x54, 0xA4):
+            opm.write(event_id, event, raw[pos], raw[pos + 1], int(cmd == 0xA4))
+        elif cmd in (0x56, 0x57, 0xA6, 0xA7):
+            opna.write(event_id, event, raw[pos], raw[pos + 1], cmd & 1, int(cmd >= 0xA6))
+        elif cmd == 0xC0:
+            segapcm.write(event_id, event, int.from_bytes(raw[pos:pos + 2], 'little'), raw[pos + 2])
+        elif cmd == 0x67 and raw[pos + 1] == 0x80:
+            length_raw = int.from_bytes(raw[pos + 2:pos + 6], 'little')
+            size = length_raw & 0x7fffffff
+            segapcm.rom_block(event_id, event, length_raw, raw[pos + 6:pos + 6 + size])
+        elif cmd == 0x67 and raw[pos + 1] == 0x81:
+            size = int.from_bytes(raw[pos + 2:pos + 6], 'little') & 0x7fffffff
+            opna.auxiliary(event_id, event, raw[pos:pos + 6 + size], 'adpcm_b_data_block')
+        elif 0x90 <= cmd <= 0x95:
+            size = {0x90: 4, 0x91: 4, 0x92: 5, 0x93: 10, 0x94: 1, 0x95: 4}[cmd]
+            stream_id = raw[pos]
+            if cmd == 0x90:
+                opna_streams[stream_id] = opna if raw[pos + 1] & 0x7f == 7 else None
+            if cmd == 0x94 and stream_id == 0xff:
+                owners = {owner for owner in opna_streams.values() if owner is not None}
+            else:
+                owner = opna_streams.get(stream_id)
+                owners = {owner} if owner is not None else set()
+            for owner in owners:
+                owner.auxiliary(event_id, event, raw[pos:pos + size], 'dac_stream')
+        elif cmd == 0xD2 and has_k051649:
+            pp, aa, dd = raw[pos:pos + 3]
+            base = {0: 0x9800, 1: 0x9880, 2: 0x988A, 3: 0x988F}.get(pp, 0x9800)
+            scc.write_scc(global_time, base + aa, dd)
+
+    # ── Write CSVs ───────────────────────────────────────────────
+    base_name = os.path.splitext(os.path.basename(vgm_path))[0]
+    if output_dir is None:
+        output_dir = os.path.dirname(os.path.abspath(vgm_path))
+    os.makedirs(output_dir, exist_ok=True)
+    if include_vgmticks:
+        import csv
+        from dataclasses import asdict
+        with open(os.path.join(output_dir, f'{base_name}.vgm.timing.csv'), 'w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=('occurrence_event_id', *event.__dataclass_fields__))
+            writer.writeheader()
+            writer.writerows(dict(occurrence_event_id=i, **asdict(event))
+                             for i, event in enumerate(source_times))
+    metadata.update(loop_count=loop_count if replay_start_event_id is not None else 1,
+                    playback_end_samples=event.vgmticks,
+                    loop_start_event_id=loop_start_event_id,
+                    replay_start_samples=metadata['decoded_end_samples'] if replay_start_event_id is not None else None,
+                    replay_start_event_id=replay_start_event_id,
+                    replay_loop_samples=(replay_ends[1] - metadata['decoded_end_samples'])
+                    if replay_start_event_id is not None else None)
+    if loop_metadata is not None:
+        loop_metadata.update(metadata)
+    if dump_loop:
+        dump_loop_metadata(os.path.join(output_dir, f'{base_name}.vgm.loop.csv'), metadata)
+
+    psg_log_csv    = os.path.join(output_dir, f"{base_name}_log.psg.csv")
+    scc_log_csv    = os.path.join(output_dir, f"{base_name}_log.scc.csv")
+    psg_trace_csv  = os.path.join(output_dir, f"{base_name}_trace.psg.csv")
+    scc_trace_csv  = os.path.join(output_dir, f"{base_name}_trace.scc.csv")
+    opll_log_csv   = os.path.join(output_dir, f"{base_name}_log.opll.csv")
+    opll_trace_csv = os.path.join(output_dir, f"{base_name}_trace.opll.csv")
+
+    psg.output_csv(psg_log_csv)
+    psg.output_trace_csv(psg_trace_csv)
+    scc.output_csv(scc_log_csv)
+    scc.output_trace_csv(scc_trace_csv)
+    opll.output_log_csv(opll_log_csv)
+    opll.output_trace_csv(opll_trace_csv)
+    opll_voice_csv = os.path.join(output_dir, f"{base_name}_trace.opll_voice.csv")
+    opll.output_voice_csv(opll_voice_csv)
+    opll_regs_csv = os.path.join(output_dir, f"{base_name}_trace.opll_regs.csv")
+    opll.output_regs_csv(opll_regs_csv)
+
+    opm_regs_csv = None
+    if opm.clock_hz:
+        opm_regs_csv = os.path.join(output_dir, f'{base_name}_trace.opm_regs.csv')
+        opm.output_csv(opm_regs_csv)
+    opm_state_csv = opm_segments_csv = None
+    opm_counts = None
+    if opm_regs_csv and dump_opm_segments:
+        from opm import build_segments, dump_analysis, key_counts
+        analysis = build_segments(opm_regs_csv, end_vgmticks=event.vgmticks)
+        opm_state_csv = os.path.join(output_dir, f'{base_name}_trace.opm.csv')
+        opm_segments_csv = os.path.join(output_dir, f'{base_name}.opm.segments.csv')
+        dump_analysis(analysis, state_csv=opm_state_csv, segments_csv=opm_segments_csv)
+        opm_counts = key_counts(analysis)
+    if opm_metadata is not None:
+        opm_metadata.update(csv_path=opm_regs_csv, clock_raw=opm.clock_raw,
+                            clock_hz=opm.clock_hz, dual_chip=opm.dual_chip,
+                            chip_type=opm.chip_type, write_count=len(opm.rows),
+                            source_end_vgmticks=event.vgmticks,
+                            state_csv_path=opm_state_csv, segments_csv_path=opm_segments_csv,
+                            key_counts=opm_counts)
+
+    opna.output(output_dir, base_name, event.vgmticks, opna_metadata, dump_opna_segments)
+    if segapcm_trace_out is not None:
+        segapcm_trace_out.append(segapcm)
+    if segapcm_metadata is not None or dump_segapcm_segments:
+        segapcm_summary = segapcm.dump(output_dir, base_name, event.vgmticks)
+        if segapcm_metadata is not None:
+            segapcm_metadata.update(segapcm_summary)
+    if opna_pcm_metadata is not None:
+        from opna_adpcm import analyze as analyze_adpcm
+        adpcm = analyze_adpcm(raw, loop_count=loop_count)
+        summary = (adpcm.dump(output_dir, base_name)
+                   if dump_opna_segments and opna.clock_hz else None)
+        opna_pcm_metadata.update(analysis=adpcm, dump_summary=summary)
+
+    return (psg_log_csv, scc_log_csv, psg_trace_csv, scc_trace_csv,
+            opll_log_csv, opll_trace_csv, opll_voice_csv, opll_regs_csv)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print(f"Usage: python {sys.argv[0]} <vgm_file> [output_dir]")
+        sys.exit(1)
+    opm_metadata = {}
+    opna_metadata = {}
+    opna_pcm_metadata = {}
+    segapcm_metadata = {}
+    p_log, s_log, p_trace, s_trace, o_log, o_trace, o_voice, o_regs = parse_vgm(
+        sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None,
+        opm_metadata=opm_metadata, dump_opm_segments=True,
+        opna_metadata=opna_metadata, opna_pcm_metadata=opna_pcm_metadata, dump_opna_segments=True,
+        segapcm_metadata=segapcm_metadata)
+    print(f"PSG log CSV:       {p_log}")
+    print(f"SCC log CSV:       {s_log}")
+    print(f"SCC trace CSV:     {s_trace}")
+    print(f"OPLL log CSV:      {o_log}")
+    print(f"OPLL trace CSV:    {o_trace}")
+    print(f"OPLL voice CSV:    {o_voice}")
+    print(f"OPLL regs CSV:     {o_regs}")
+    if segapcm_metadata.get('actual_usage'):
+        print(f"SegaPCM state CSV: {segapcm_metadata['state_csv_path']}")
+        print(f"SegaPCM Segments:  {segapcm_metadata['segments_csv_path']}")
+        print(f"SegaPCM analysis:  {segapcm_metadata['analysis_json_path']}")
+    if opna_pcm_metadata.get('dump_summary'):
+        print(f"OPNA ADPCM IR:     {opna_pcm_metadata['dump_summary']['analysis.json']}")
+    if opm_metadata['csv_path']:
+        print(f"OPM regs CSV:      {opm_metadata['csv_path']}")
+        print(f"OPM state CSV:     {opm_metadata['state_csv_path']}")
+        print(f"OPM Segments CSV:  {opm_metadata['segments_csv_path']}")
+    for label, facts in (('OPNA', opna_metadata),):
+        if facts['csv_path']:
+            print(f"{label} regs CSV: {facts['csv_path']}")
+            print(f"{label} state CSV: {facts['state_csv_path']}")
+            print(f"{label} Segments CSV: {facts['segments_csv_path']}")
+            print(f"{label} unmodeled CSV: {facts['unmodeled_csv_path']}")
+        if facts['auxiliary_csv_path']:
+            print(f"{label} auxiliary CSV: {facts['auxiliary_csv_path']}")
+        if facts['issues']:
+            print(f"{label} source diagnostics: {facts['issues']}")

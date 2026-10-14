@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "compiler": "MUCOMVGM 0.0.5",
+  "compiler_sha256": "9b4bc30a977ab35dc0589fe8a6aec40d8608ea441eb62ea1a32254967f5bb71f",
+  "compiler_revision": "827a97c6c63e0df1ce74c8cee7dcc93cd6a00a22",
+  "pcm_origin": "Mathematically synthesized; no RX21 or upstream sample assets",
+  "pcm_codec": "nominal Yamaha ADPCM-B, high nibble first",
+  "voice_dat_sha256": "7e00b802fc475751a57351746bba7534e51ddf2ac44abe4f47772db8681f5bea",
+  "pcm_bank_address_unit_bytes": 4,
+  "pcm_bank_sha256": "ea7db831a5be700e62c1dc166597ce1c5257c4d432dce5a90bef1b58efc2b903",
+  "samples": [
+    {
+      "slot": 1,
+      "name": "tone",
+      "wav": "pcm/tone.wav",
+      "rate_hz": 16000,
+      "sample_count": 1600,
+      "encoded_bytes": 800,
+      "bank_start_byte": 0,
+      "encoded_sha256": "1bd774d575f88019ed95a54551cb7a47fba596acda105798dd08f337a35fda93",
+      "wav_sha256": "2405f90189bf4a6a1b095d32b8b083f056abf25c4bc1557692a2f4f7f21b5fda"
+    },
+    {
+      "slot": 2,
+      "name": "kick",
+      "wav": "pcm/kick.wav",
+      "rate_hz": 16000,
+      "sample_count": 3200,
+      "encoded_bytes": 1600,
+      "bank_start_byte": 800,
+      "encoded_sha256": "1efb8bd7e1c9c43d93fbcf65d0783b1d01e4a4938ee11ac50be820ac66ec62c7",
+      "wav_sha256": "571fd8b62a6548b0057b444e9a2683d8af5ce3424e04bc61e9aab88dd823df61"
+    },
+    {
+      "slot": 3,
+      "name": "noise",
+      "wav": "pcm/noise.wav",
+      "rate_hz": 16000,
+      "sample_count": 1600,
+      "encoded_bytes": 800,
+      "bank_start_byte": 2400,
+      "encoded_sha256": "44ca80a788211fa7a3c5fe3d1d1457255a54558ee268b39c9f50ad9314ae686d",
+      "wav_sha256": "a4d3bfce25db2553b3be869682258b159117e018762a2793ebc3ea6b9b03278e"
+    },
+    {
+      "slot": 4,
+      "name": "click",
+      "wav": "pcm/click.wav",
+      "rate_hz": 16000,
+      "sample_count": 800,
+      "encoded_bytes": 400,
+      "bank_start_byte": 3200,
+      "encoded_sha256": "7f2e29cbf2b8ec6e12bebda11b88fc3dfb684c90171f7b22cf55b948aa7e542d",
+      "wav_sha256": "f6bc9b59c352db6d53aa2a786fd2804cd06f932024533d316e480a6b7abcbdd6"
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "fm_notes",
+      "description": "FM attacks, rests and tie",
+      "expected_features": [
+        "fm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "3b8216b97a1321a4e43312be845a96f6c4b12f179a86b1ea2c4f86d3dbe6029b",
+      "vgm_sha256": "50544fab9e4748f1989e840441a486a3957afb4d45c7a9538d95a7fcd3e59c3a",
+      "loop_start_samples": 22050,
+      "loop_samples": 176400,
+      "total_samples": 198450,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": true,
+        "ssg": false,
+        "rhythm": false,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 4,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 374850,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "fm_voice_pan",
+      "description": "FM voice, pan and level changes",
+      "expected_features": [
+        "fm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "95bcd74172e16b30a493b77ffb065faf723d6ef10745cecc502aa8f8a68412d2",
+      "vgm_sha256": "ee9cf801c1bfae4e4e651fc891421783e64cb7729e718aad3c16b7af032f6c6e",
+      "loop_start_samples": 22050,
+      "loop_samples": 132300,
+      "total_samples": 154350,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": true,
+        "ssg": false,
+        "rhythm": false,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 4,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 286650,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "fm_six_channels",
+      "description": "Six FM channels; finite companions precede loop",
+      "expected_features": [
+        "fm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "6790a087d5e29c3524f31b0095f28c475a300f6b847645789f2f4cb13abc7226",
+      "vgm_sha256": "2681eb56caa4053b74c06ef067db434668db55b70792936bd3a9eb04d94707a6",
+      "loop_start_samples": 88200,
+      "loop_samples": 88200,
+      "total_samples": 176400,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": true,
+        "ssg": false,
+        "rhythm": false,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 8,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 264600,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "ssg_tone",
+      "description": "SSG tone pitch, levels, rest and tie",
+      "expected_features": [
+        "ssg"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "07affd2ad68588ac1e8c16d59c9ec8adf3ecdca1c49bbfa00626c7f7e2db8421",
+      "vgm_sha256": "405577dbaa4a6fb76f69cbb498f5bb3c6ac699cff8df491979a9e44b6fb8310c",
+      "loop_start_samples": 22050,
+      "loop_samples": 176400,
+      "total_samples": 198450,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": true,
+        "rhythm": false,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 4,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 374850,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "ssg_noise",
+      "description": "SSG noise and tone/noise mixer changes",
+      "expected_features": [
+        "ssg",
+        "noise"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "9ad09ab69d3bd818b9d7ae7cf2ab6b18d5e517cf39c9a9b40697c6b01064286b",
+      "vgm_sha256": "5bf8ac02a34cf83cebd10829c529aaa19cb6321949ca940ce8e9b7f1affac54f",
+      "loop_start_samples": 22050,
+      "loop_samples": 176400,
+      "total_samples": 198450,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": true,
+        "rhythm": false,
+        "pcm": false,
+        "noise": true,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 4,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 374850,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "ssg_hwenv",
+      "description": "SSG hardware envelope shape and period",
+      "expected_features": [
+        "ssg",
+        "hardware_envelope"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "e004e02d48ff7a079bfc7776222090b2829ba974297a1d426c11537af53ba181",
+      "vgm_sha256": "4bf5efd6116595dfa09b00263dfff77c857d9fdf86a21a4c1a466a193c3115ad",
+      "loop_start_samples": 22050,
+      "loop_samples": 132300,
+      "total_samples": 154350,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": true,
+        "rhythm": false,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": true
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 17,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 286650,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "rhythm_six",
+      "description": "Six built-in rhythm triggers and mask combination",
+      "expected_features": [
+        "rhythm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "06dfe6823860f09823a6954af7821cd7c82cd3a3232997eb2888379ae84bd8a9",
+      "vgm_sha256": "b24de68e63e34976af9c4457ea939fcd0ea6d49a2fcd7b602f294b462ff08a85",
+      "loop_start_samples": 22050,
+      "loop_samples": 154350,
+      "total_samples": 176400,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": false,
+        "rhythm": true,
+        "pcm": false,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 7,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 0,
+      "pcm_playbacks": 0,
+      "pcm_sample_hashes": [],
+      "repeated_total_samples": 330750,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "pcm_samples",
+      "description": "Four synthetic ADPCM-B samples",
+      "expected_features": [
+        "pcm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "07e97db230eb9243809dfbdfbaf2cd9031668e1da7fc39ebf3702ab9198b6009",
+      "vgm_sha256": "f9d748d4466eeeb99beadd57de8290c568cab2a72d852dd5a052fad6b520655d",
+      "loop_start_samples": 22050,
+      "loop_samples": 132300,
+      "total_samples": 154350,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": false,
+        "rhythm": false,
+        "pcm": true,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 1,
+      "pcm_playbacks": 4,
+      "pcm_sample_hashes": [
+        "1bd774d575f88019ed95a54551cb7a47fba596acda105798dd08f337a35fda93",
+        "1efb8bd7e1c9c43d93fbcf65d0783b1d01e4a4938ee11ac50be820ac66ec62c7",
+        "44ca80a788211fa7a3c5fe3d1d1457255a54558ee268b39c9f50ad9314ae686d",
+        "7f2e29cbf2b8ec6e12bebda11b88fc3dfb684c90171f7b22cf55b948aa7e542d"
+      ],
+      "repeated_total_samples": 286650,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "pcm_rate_level",
+      "description": "ADPCM-B pitch, level and pan between notes",
+      "expected_features": [
+        "pcm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "90718e85d3dcf7ac279e2ad5e2f2be61079bbbed40e45dd338318bbf7ce1f2df",
+      "vgm_sha256": "cf093152130b4145a9e3034a82add4e50e2b3de34a40946d7bcdb6acd5ec46f3",
+      "loop_start_samples": 22050,
+      "loop_samples": 132300,
+      "total_samples": 154350,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": false,
+        "ssg": false,
+        "rhythm": false,
+        "pcm": true,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 0,
+      "rhythm_triggers": 0,
+      "ssg_active_control_intervals": 0,
+      "pcm_memory_blocks": 1,
+      "pcm_playbacks": 4,
+      "pcm_sample_hashes": [
+        "1bd774d575f88019ed95a54551cb7a47fba596acda105798dd08f337a35fda93"
+      ],
+      "repeated_total_samples": 286650,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    },
+    {
+      "name": "mixed_intro",
+      "description": "FM, all SSG channels, rhythm and PCM prelude; FM loop",
+      "expected_features": [
+        "fm",
+        "ssg",
+        "rhythm",
+        "pcm"
+      ],
+      "loop_commands": 1,
+      "muc_sha256": "456b648a291cb3e2a74acd4f17a57def008ad4c943f0f0a3e9be79506fb354a2",
+      "vgm_sha256": "03d4075a56dbb59aed5795af8e2490c770f27b48f82f737bebb5abc44d7943ae",
+      "loop_start_samples": 88200,
+      "loop_samples": 88200,
+      "total_samples": 176400,
+      "clock_hz": 7987200,
+      "active_features": {
+        "fm": true,
+        "ssg": true,
+        "rhythm": true,
+        "pcm": true,
+        "noise": false,
+        "hardware_envelope": false
+      },
+      "fm_keyon_requests": 4,
+      "rhythm_triggers": 1,
+      "ssg_active_control_intervals": 3,
+      "pcm_memory_blocks": 1,
+      "pcm_playbacks": 1,
+      "pcm_sample_hashes": [
+        "1efb8bd7e1c9c43d93fbcf65d0783b1d01e4a4938ee11ac50be820ac66ec62c7"
+      ],
+      "repeated_total_samples": 264600,
+      "loop_register_replay_equal": true,
+      "fm_loop_attack_states_equal": true,
+      "pcm_loop_states_equal": true,
+      "preloop_fm_key_masks": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "4": 0,
+        "5": 0,
+        "6": 0
+      },
+      "preloop_ssg_amplitudes": [
+        0,
+        0,
+        0
+      ],
+      "preloop_pcm_start_bit": false
+    }
+  ],
+  "validation_scope": "Compilation and native source IR/loop/PCM byte checks; no musical MUC renderer or MUB/playback certification"
+}

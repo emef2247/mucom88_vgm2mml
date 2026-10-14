@@ -1,0 +1,17 @@
+track,execution,file_offset,track_offset,tick,opcode,opcode_hex,length,operands_hex,kind,value,values,count,destination_file_offset,remaining
+A,0,74,0,0,253,fd,2,00,voice,0,,,,
+A,1,76,2,0,255,ff,2,f0,tempo,,[240],,,
+A,2,78,4,0,248,f8,2,08,gate,8,,,,
+A,3,80,6,0,251,fb,2,0c,volume,12,,,,
+A,4,82,8,0,252,fc,2,03,pan,3,,,,
+A,5,84,10,0,247,f7,1,,hold,,,,,
+A,7,87,13,12,251,fb,2,08,volume,8,,,,
+A,8,89,15,12,252,fc,2,01,pan,1,,,,
+A,9,91,17,12,247,f7,1,,hold,,,,,
+A,11,94,20,24,252,fc,2,02,pan,2,,,,
+A,14,99,25,48,253,fd,2,01,voice,1,,,,
+A,15,101,27,48,251,fb,2,0c,volume,12,,,,
+A,16,103,29,48,252,fc,2,03,pan,3,,,,
+A,21,112,38,96,246,f6,3,0200,repeat_start,,,2,,
+A,24,118,44,120,245,f5,3,fffa,repeat_end,,,,115,1
+A,27,118,44,144,245,f5,3,fffa,repeat_end,,,,115,0

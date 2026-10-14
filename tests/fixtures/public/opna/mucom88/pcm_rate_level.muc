@@ -1,0 +1,6 @@
+#title pcm_rate_level
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+#pcm synthetic_pcm.bin
+K T120 o1 @1 v200 p3 q4 r4 L v200 p3 c8 r8 d8 r8 v120 p1 e8 r8 v220 p2 g8 r8 p3 r2

@@ -1,0 +1,11 @@
+track,execution,file_offset,track_offset,tick,opcode,opcode_hex,length,operands_hex,kind,value,values
+A,0,74,0,0,253,fd,2,00,voice,0,
+A,1,76,2,0,255,ff,2,f0,tempo,,[240]
+A,2,78,4,0,248,f8,2,08,gate,8,
+A,3,80,6,0,251,fb,2,0c,volume,12,
+A,4,82,8,0,252,fc,2,03,pan,3,
+P,0,117,0,0,253,fd,2,00,bank,0,
+P,1,119,2,0,237,ed,2,04,pcm_rate,4,
+P,2,121,4,0,252,fc,2,03,pan,3,
+P,3,123,6,0,248,f8,2,04,gate,4,
+P,4,125,8,0,251,fb,2,9b,volume,155,

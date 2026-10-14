@@ -1,0 +1,8 @@
+[package]
+name = "typed-structure-probe"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+soundlog = { version = "=0.15.0", features = ["mdx"] }

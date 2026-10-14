@@ -1,0 +1,6 @@
+#title fm_voice_pan
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+#voice synthetic_voice.dat
+A T120 @1 v12 o4 l4 q4 r4 L @1 v12 p1 c p2 e @2 p3 v9 g v12 c r2

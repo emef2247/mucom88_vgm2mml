@@ -1,0 +1,123 @@
+{
+  "schema": "pcm-ir-reference-expectation-v1",
+  "variant": "decoded-mdx-pdx-requests",
+  "provenance": "direct original MDX commands and PDX table/payload; not converter output",
+  "expectation_domain": "neutral samples plus reference playback requests; not observed source PcmAnalysis",
+  "clock_domain": "MDX ticks; original VGM timeline not captured",
+  "samples": [
+    {
+      "sample_id": 0,
+      "codec": "msm6258-adpcm4-low-first",
+      "sha256": "d478bb3a0d8665a26c82075505186c3681e48b7b012b05d013f3d9c8f7ef90db",
+      "byte_length": 60000,
+      "nominal_nibbles": 120000,
+      "encoded_file": "samples/000.adpcm"
+    },
+    {
+      "sample_id": 1,
+      "codec": "msm6258-adpcm4-low-first",
+      "sha256": "a8e969fc3045080f7f1d508c206378ec8eaf2530730fe986273ccea4ccde12fa",
+      "byte_length": 400,
+      "nominal_nibbles": 800,
+      "encoded_file": "samples/001.adpcm"
+    }
+  ],
+  "sample_bindings": [
+    {
+      "bank": 0,
+      "slot": 0,
+      "sample_id": 0
+    },
+    {
+      "bank": 0,
+      "slot": 1,
+      "sample_id": 1
+    }
+  ],
+  "playback_requests": [
+    {
+      "track": "P",
+      "event_id": 0,
+      "kind": "note",
+      "file_offset": 110,
+      "opcode": 128,
+      "start_tick": 0,
+      "duration_ticks": 192,
+      "end_tick": 192,
+      "gate_ticks": 192,
+      "gate_end_tick": 192,
+      "q": 8,
+      "q_origin": "encoded_command",
+      "hold": true,
+      "continuation": false,
+      "retrigger_intent": true,
+      "release_intent": "held",
+      "release_tick": null,
+      "key_delay_ticks": null,
+      "pan": 3,
+      "volume_encoded": 155,
+      "decoder_reset_known": null,
+      "consumed_nibbles": null,
+      "physical_stop_verified": false,
+      "bank": 0,
+      "bank_origin": "encoded_command",
+      "slot": 0,
+      "rate_code": 4,
+      "sample_id": 0,
+      "nominal_sample_nibbles": 120000,
+      "nominal_sample_exhaustion_seconds": 7.68,
+      "binding_status": "valid"
+    },
+    {
+      "track": "P",
+      "event_id": 1,
+      "kind": "note",
+      "file_offset": 112,
+      "opcode": 128,
+      "start_tick": 192,
+      "duration_ticks": 128,
+      "end_tick": 320,
+      "gate_ticks": 128,
+      "gate_end_tick": 320,
+      "q": 8,
+      "q_origin": "encoded_command",
+      "hold": false,
+      "continuation": true,
+      "retrigger_intent": false,
+      "release_intent": "gate_expiry",
+      "release_tick": 320,
+      "key_delay_ticks": null,
+      "pan": 3,
+      "volume_encoded": 155,
+      "decoder_reset_known": null,
+      "consumed_nibbles": null,
+      "physical_stop_verified": false,
+      "bank": 0,
+      "bank_origin": "encoded_command",
+      "slot": 0,
+      "rate_code": 4,
+      "sample_id": 0,
+      "nominal_sample_nibbles": 120000,
+      "nominal_sample_exhaustion_seconds": 7.68,
+      "binding_status": "valid"
+    }
+  ],
+  "termination": [
+    {
+      "kind": "finite_end",
+      "tick": 384,
+      "file_offset": 115,
+      "physical_stop_verified": false
+    }
+  ],
+  "static_decode_complete": true,
+  "observed_source_fields": {
+    "transfer_timestamps": null,
+    "source_event_ids": null,
+    "decoder_reset": null,
+    "consumed_nibbles": null,
+    "physical_stop": null
+  },
+  "extraction_comparison": "not_run",
+  "native_playback_verification": "unverified"
+}

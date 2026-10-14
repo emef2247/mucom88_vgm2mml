@@ -1,0 +1,7 @@
+track,event_id,kind,file_offset,opcode,start_tick,duration_ticks,end_tick,gate_ticks,gate_end_tick,q,q_origin,hold,continuation,retrigger_intent,release_intent,release_tick,key_delay_ticks,pan,volume_encoded,decoder_reset_known,consumed_nibbles,physical_stop_verified,midi_note,voice,detune_64ths,bank,bank_origin,slot,rate_code,sample_id,nominal_sample_nibbles,nominal_sample_exhaustion_seconds,binding_status
+A,0,note,78,173,0,192,192,192,192,8,encoded_command,True,False,True,held,,,3,12,,,False,48,0,,,,,,,,,
+A,1,note,80,173,192,128,320,128,320,8,encoded_command,False,True,False,gate_expiry,320,,3,12,,,False,48,0,,,,,,,,,
+A,2,rest,82,63,320,64,384,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+P,0,note,110,128,0,192,192,192,192,8,encoded_command,True,False,True,held,,,3,155,,,False,,,,0,encoded_command,0,4,0,120000,7.68,valid
+P,1,note,112,128,192,128,320,128,320,8,encoded_command,False,True,False,gate_expiry,320,,3,155,,,False,,,,0,encoded_command,0,4,0,120000,7.68,valid
+P,2,rest,114,63,320,64,384,,,,,,,,rest,,,,,,,False,,,,,,,,,,,

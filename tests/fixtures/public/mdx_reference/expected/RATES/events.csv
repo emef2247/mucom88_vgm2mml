@@ -1,0 +1,17 @@
+track,event_id,kind,file_offset,opcode,start_tick,duration_ticks,end_tick,gate_ticks,gate_end_tick,q,q_origin,hold,continuation,retrigger_intent,release_intent,release_tick,key_delay_ticks,pan,volume_encoded,decoder_reset_known,consumed_nibbles,physical_stop_verified,midi_note,voice,detune_64ths,bank,bank_origin,slot,rate_code,sample_id,nominal_sample_nibbles,nominal_sample_exhaustion_seconds,binding_status
+A,0,note,82,173,0,24,24,24,24,8,encoded_command,False,False,True,gate_expiry,24,,3,12,,,False,48,0,,,,,,,,,
+A,1,rest,84,23,24,24,48,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+A,2,note,85,175,48,24,72,24,72,8,encoded_command,False,False,True,gate_expiry,72,,3,12,,,False,50,0,,,,,,,,,
+A,3,rest,87,23,72,24,96,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+A,4,note,88,177,96,24,120,24,120,8,encoded_command,False,False,True,gate_expiry,120,,3,12,,,False,52,0,,,,,,,,,
+A,5,rest,90,23,120,24,144,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+A,6,note,91,173,144,24,168,24,168,8,encoded_command,False,False,True,gate_expiry,168,,3,12,,,False,48,0,,,,,,,,,
+A,7,rest,93,71,168,72,240,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+P,0,note,120,129,0,24,24,24,24,8,encoded_command,False,False,True,gate_expiry,24,,1,155,,,False,,,,0,encoded_command,1,4,1,800,0.0512,valid
+P,1,rest,122,23,24,24,48,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+P,2,note,127,129,48,24,72,24,72,8,encoded_command,False,False,True,gate_expiry,72,,2,155,,,False,,,,0,encoded_command,1,0,1,800,0.2048,valid
+P,3,rest,129,23,72,24,96,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+P,4,note,134,129,96,24,120,24,120,8,encoded_command,False,False,True,gate_expiry,120,,3,155,,,False,,,,0,encoded_command,1,4,1,800,0.0512,valid
+P,5,rest,136,23,120,24,144,,,,,,,,rest,,,,,,,False,,,,,,,,,,,
+P,6,note,137,129,144,24,168,24,168,8,encoded_command,False,False,True,gate_expiry,168,,3,155,,,False,,,,0,encoded_command,1,4,1,800,0.0512,valid
+P,7,rest,139,71,168,72,240,,,,,,,,rest,,,,,,,False,,,,,,,,,,,

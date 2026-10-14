@@ -1,0 +1,40 @@
+{
+  "schema": "mdx-reference-listening-v1",
+  "date": "2026-10-10",
+  "evidence": "User listened in MMDSP to the copied reference folder; no cause inferred",
+  "mdx_sha256": {
+    "GATEEND": "df2c5d7bd5260232f237e0325234f5db4319434200bef559df566a521b7e5bb8",
+    "HOLDEND": "8540bdfb069b2d6cb0135a0c1816d86182ecd6047d7cd32919966d1f23b1643d",
+    "RATES": "e77265c6d413e480a654a416680812c4f4f354f69ca65f5da543bfaeca0db2c2",
+    "FMSTATE": "35d1ddf86c9d8edcb9663b8b7b003289e8536231d20900384b0e2f4f62cc4074"
+  },
+  "pdx_sha256": "7b77136e61591c1486f9f334d32121bea61fc1fb16083dcf95d20d19db80a395",
+  "artifact_identity": "Copied filenames reported by user; copied-file hashes not independently measured",
+  "cases": {
+    "GATEEND": {
+      "display": "pass",
+      "audible": "pass",
+      "terminal_pcm_cessation": "unverified"
+    },
+    "HOLDEND": {
+      "display": "pass",
+      "audible": "pass",
+      "terminal_pcm_cessation": "pass"
+    },
+    "RATES": {
+      "display": "pass",
+      "audible": "pass",
+      "terminal_pcm_cessation": "fail",
+      "manual_F7_during_play": "pass",
+      "manual_F7_after_end_noise": "fail",
+      "observation": "Noise continues after data ends; F7 after end does not stop it, F7 during playback stops it",
+      "additional_observation": "After an interval of noise, scale-like sounds with rising octaves are heard; MMDSP GUI remains stopped with no corresponding display activity. Sound source is not independently identified."
+    },
+    "FMSTATE": {
+      "display": "pass",
+      "audible": "pass",
+      "terminal_pcm_cessation": "not_applicable"
+    }
+  },
+  "converter_extraction_comparison": "not_run"
+}

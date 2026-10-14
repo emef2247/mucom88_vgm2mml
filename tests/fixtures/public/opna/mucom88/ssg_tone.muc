@@ -1,0 +1,5 @@
+#title ssg_tone
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+D T120 E255,255,255,255,0,255 P1 v10 o5 l4 q4 r4 L v10 c d v7 e8& e8 v10 r4 g2 r2

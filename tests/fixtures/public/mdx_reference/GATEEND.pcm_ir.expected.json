@@ -1,0 +1,120 @@
+{
+  "schema": "pcm-ir-reference-expectation-v1",
+  "variant": "authored-score-intent",
+  "provenance": "authored sample bytes and score intent; no vgm2mml output",
+  "clock_domain": "reference MDX ticks; source VGM timing not captured",
+  "tick_seconds": "64/15625",
+  "samples": [
+    {
+      "sample_id": 0,
+      "codec": "msm6258-adpcm4-low-first",
+      "encoded_file": "samples/000.adpcm",
+      "byte_length": 60000,
+      "sha256": "d478bb3a0d8665a26c82075505186c3681e48b7b012b05d013f3d9c8f7ef90db",
+      "source": "original integer triangle with authored fade",
+      "authored_linear_samples": 120000,
+      "period_samples": 48
+    },
+    {
+      "sample_id": 1,
+      "codec": "msm6258-adpcm4-low-first",
+      "encoded_file": "samples/001.adpcm",
+      "byte_length": 400,
+      "sha256": "a8e969fc3045080f7f1d508c206378ec8eaf2530730fe986273ccea4ccde12fa",
+      "source": "original integer triangle with authored fade",
+      "authored_linear_samples": 800,
+      "period_samples": 24
+    }
+  ],
+  "playback_requests": [
+    {
+      "sample_id": 0,
+      "start_tick": 0,
+      "end_tick": 12,
+      "duration_ticks": 12,
+      "requested_gate_end_tick": 6,
+      "outgoing_hold": false,
+      "continuation": false,
+      "rate_code": 4,
+      "pan_code": 3,
+      "requested_volume": 100,
+      "start_seconds": "0",
+      "gate_end_seconds": "384/15625",
+      "physical_stop_observed": null,
+      "decoder_reset_observed": null,
+      "consumed_nibbles": null,
+      "transfer_event_ids": null
+    },
+    {
+      "sample_id": 0,
+      "start_tick": 24,
+      "end_tick": 36,
+      "duration_ticks": 12,
+      "requested_gate_end_tick": 30,
+      "outgoing_hold": false,
+      "continuation": false,
+      "rate_code": 4,
+      "pan_code": 3,
+      "requested_volume": 100,
+      "start_seconds": "1536/15625",
+      "gate_end_seconds": "384/3125",
+      "physical_stop_observed": null,
+      "decoder_reset_observed": null,
+      "consumed_nibbles": null,
+      "transfer_event_ids": null
+    },
+    {
+      "sample_id": 1,
+      "start_tick": 48,
+      "end_tick": 72,
+      "duration_ticks": 24,
+      "requested_gate_end_tick": 60,
+      "outgoing_hold": false,
+      "continuation": false,
+      "rate_code": 4,
+      "pan_code": 3,
+      "requested_volume": 100,
+      "start_seconds": "3072/15625",
+      "gate_end_seconds": "768/3125",
+      "physical_stop_observed": null,
+      "decoder_reset_observed": null,
+      "consumed_nibbles": null,
+      "transfer_event_ids": null
+    },
+    {
+      "sample_id": 0,
+      "start_tick": 96,
+      "end_tick": 108,
+      "duration_ticks": 12,
+      "requested_gate_end_tick": 102,
+      "outgoing_hold": false,
+      "continuation": false,
+      "rate_code": 4,
+      "pan_code": 3,
+      "requested_volume": 100,
+      "start_seconds": "6144/15625",
+      "gate_end_seconds": "6528/15625",
+      "physical_stop_observed": null,
+      "decoder_reset_observed": null,
+      "consumed_nibbles": null,
+      "transfer_event_ids": null
+    }
+  ],
+  "unverified": [
+    "physical STOP",
+    "decoder reset/consumption",
+    "VGM transfer schedule"
+  ],
+  "bindings": [
+    {
+      "sample_id": 0,
+      "bank": 0,
+      "slot": 0
+    },
+    {
+      "sample_id": 1,
+      "bank": 0,
+      "slot": 1
+    }
+  ]
+}

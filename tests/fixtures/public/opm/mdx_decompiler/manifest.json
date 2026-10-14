@@ -1,0 +1,236 @@
+{
+  "license": "MIT",
+  "provenance": "Original synthetic scores; mdxtools decompilation is separate reference evidence.",
+  "mdxtools_revision": "9c8539fec2757fcf7c85d1986171b50ebe2ef1e5",
+  "cases": {
+    "nested_phrase_loops": {
+      "channel_attack_events": 24,
+      "attack_note_numbers": [
+        45,
+        47,
+        49,
+        52,
+        45,
+        47,
+        49,
+        52,
+        45,
+        47,
+        49,
+        52,
+        45,
+        47,
+        49,
+        52,
+        45,
+        47,
+        49,
+        52,
+        45,
+        47,
+        49,
+        52
+      ],
+      "track_a_hex": "ffd8fd00fb0af60300f60200ad0baf0bb10bb40bf5fff517f5ffee17f100",
+      "sha256": {
+        "nested_phrase_loops/nested_phrase_loops.source.mml": "7e924015374d79b1bbba203bf28b74f2ef15b439154bea8e0e5e2ab78100c0f4",
+        "nested_phrase_loops/nested_phrase_loops.vgm": "521a8c1edb9fdad67164293fb0d033441257d80c085cb11d7e0bffbd9692d4cb",
+        "nested_phrase_loops/reference/nested_phrase_loops.mdx": "92d87c18de0739d57b235c5b402a33cdf47a9460a7f687ac2f09d53192aa18a0",
+        "nested_phrase_loops/reference/nested_phrase_loops.mdxdump.txt": "8f4ad2941cf7fee6082d8a22528fd614965fc82f2b52b32f5290371d044dc749",
+        "nested_phrase_loops/reference/nested_phrase_loops.mdxtools.mml": "4139552bcbd8c4b5f949880af6eaf6f7406cdd6d9d985b639807c8433fded5e6"
+      },
+      "attack_kc_raw": [
+        60,
+        62,
+        65,
+        69,
+        60,
+        62,
+        65,
+        69,
+        60,
+        62,
+        65,
+        69,
+        60,
+        62,
+        65,
+        69,
+        60,
+        62,
+        65,
+        69,
+        60,
+        62,
+        65,
+        69
+      ],
+      "attack_mdx_ticks": [
+        0,
+        12,
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        120,
+        132,
+        144,
+        156,
+        168,
+        180,
+        192,
+        204,
+        240,
+        252,
+        264,
+        276,
+        288,
+        300,
+        312,
+        324
+      ],
+      "end_mdx_tick": 384
+    },
+    "repeat_exit": {
+      "channel_attack_events": 10,
+      "attack_note_numbers": [
+        45,
+        47,
+        49,
+        50,
+        45,
+        47,
+        49,
+        50,
+        45,
+        47
+      ],
+      "track_a_hex": "ffd8fd00fb0af60300ad0baf0bf40005b10bb20bf5fff217f100",
+      "sha256": {
+        "repeat_exit/reference/repeat_exit.mdx": "696510cc38c005fce7eea151e6cb1f49fad53efc78e89bd61b8d80f0096357d1",
+        "repeat_exit/reference/repeat_exit.mdxdump.txt": "f8c23678ff2680c67b9d511ef4f5b3447bf8b7a447547af26b226808d366d63e",
+        "repeat_exit/reference/repeat_exit.mdxtools.mml": "07f23aa80112aec2c59542da45e6251b4e291b756f31aabac5cceac728779512",
+        "repeat_exit/repeat_exit.source.mml": "8ad4638f42eadcae73c6de1d6296b7f44a70f949eda88a9250f2b0aca8af643b",
+        "repeat_exit/repeat_exit.vgm": "7565e84fae9f802f16803b9890ef7ef2a3e4c5d0221c9daff4d20b4f9fbeec9b"
+      },
+      "attack_kc_raw": [
+        60,
+        62,
+        65,
+        66,
+        60,
+        62,
+        65,
+        66,
+        60,
+        62
+      ],
+      "attack_mdx_ticks": [
+        0,
+        12,
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        96,
+        108
+      ],
+      "end_mdx_tick": 144
+    },
+    "song_loop": {
+      "channel_attack_events": 9,
+      "attack_note_numbers": [
+        45,
+        47,
+        49,
+        50,
+        49,
+        50,
+        49,
+        50,
+        52
+      ],
+      "track_a_hex": "ffd8fd00fb0aad0baf0bf60300b10bb20bf5fff9b40b17f1fff0",
+      "sha256": {
+        "song_loop/reference/song_loop.mdx": "141ce362f808f6fb925fb4f46ca92f316403c1eea7267f591da96a4fb053eb30",
+        "song_loop/reference/song_loop.mdxdump.txt": "13546cc9b10c53303ad1be2840ded0b707f0724ef50e29a167532782ac9c7158",
+        "song_loop/reference/song_loop.mdxtools.mml": "c550a284bcd978c168067fe5bfb6a102997fe8d24e42dc2a1ba3354be078eaf7",
+        "song_loop/song_loop.source.mml": "44f79fb7ca9b34160b672f96428dfbe7c4f069431cf5fb76cfc6741ec154a9e7",
+        "song_loop/song_loop.vgm": "1f723a1ab2bcaa619db052e4e97894db758557be1e79b881af16c99c7401b154"
+      },
+      "song_loop": {
+        "command_offset": 23,
+        "displacement": -16,
+        "target_offset": 10,
+        "offset_origin": "after the three-byte F1 command"
+      },
+      "attack_kc_raw": [
+        60,
+        62,
+        65,
+        66,
+        65,
+        66,
+        65,
+        66,
+        69
+      ],
+      "attack_mdx_ticks": [
+        0,
+        12,
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        96
+      ],
+      "end_mdx_tick": 132
+    },
+    "tie_controls": {
+      "channel_attack_events": 2,
+      "attack_note_numbers": [
+        45,
+        47
+      ],
+      "track_a_hex": "ffd8fd00fb0af7ad0bad0bfc01af1717f100",
+      "sha256": {
+        "tie_controls/reference/tie_controls.mdx": "3b90ab9b812d8f5fc8ff25a8c2d58649c21e45de6febb9eddd3ccaeda5dfcde2",
+        "tie_controls/reference/tie_controls.mdxdump.txt": "cd5157e639f78ebd7f213f8b34f1a9bc9b3b063e66e3f879ba7f690bf58f8c9c",
+        "tie_controls/reference/tie_controls.mdxtools.mml": "4ee673fc0f6cfe9368d612f5b2f1b35a27971cb7b960dae092dc232184b70d3d",
+        "tie_controls/tie_controls.source.mml": "58a149c0aa404b069c046bdc4f6f34f8ab04a917cd366691b1b7ac6e12b02644",
+        "tie_controls/tie_controls.vgm": "572c2084a8b2a046218f0de5f982a6a922008ebb9fd74e9ee6123ee085a98a3f"
+      },
+      "attack_kc_raw": [
+        60,
+        62
+      ],
+      "attack_mdx_ticks": [
+        0,
+        24
+      ],
+      "end_mdx_tick": 72
+    }
+  },
+  "generator": {
+    "mmlx": "0.2.0",
+    "soundlog": "0.15.0",
+    "loop_count": 1,
+    "opm_clock_hz": 4000000
+  },
+  "mdxtools": {
+    "mdx2mml": {
+      "sha256": "e1afc886b92bcc24765d8e3ea602a4d167123c7724e60a5ddf973a6710266379",
+      "revision": "9c8539fec2757fcf7c85d1986171b50ebe2ef1e5"
+    },
+    "mdxdump": {
+      "sha256": "8a4532725d6723e79affd6af0e5beae3a79c631e9fbd8938a60d66aaeaf65283",
+      "revision": "9c8539fec2757fcf7c85d1986171b50ebe2ef1e5"
+    }
+  }
+}

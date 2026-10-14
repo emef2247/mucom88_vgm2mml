@@ -1,0 +1,14 @@
+title OPM decompiler fixture: repeat_exit
+
+pdxfile 
+SetTempo 122 BPM (216)
+SetVoiceNum 0
+SetVolume 10
+RepeatStart 3 0
+Note 45 (c4) duration 11 (192 / 17)
+Note 47 (d4) duration 11 (192 / 17)
+RepeatEscape 5
+Note 49 (e4) duration 11 (192 / 17)
+Note 50 (f4) duration 11 (192 / 17)
+RepeatEnd -14
+Rest 23 (192 / 8)

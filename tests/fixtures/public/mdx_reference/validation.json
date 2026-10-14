@@ -1,0 +1,78 @@
+{
+  "fixture_origin": "entirely authored for this project",
+  "license": "MIT",
+  "compiler": "native MXC v1.01 via existing adapter",
+  "pcm_packer": "external mdx-fixture-generator --build-pdx",
+  "pdx_sha256": "7b77136e61591c1486f9f334d32121bea61fc1fb16083dcf95d20d19db80a395",
+  "converter_used_for_expectations": false,
+  "cases": [
+    {
+      "stem": "GATEEND",
+      "purpose": "Long and short assets gated before exhaustion; repeated triggers and final silence",
+      "end_ticks": 168,
+      "nominal_seconds": 0.688128,
+      "authored_intent_comparison": "pass",
+      "pdx_bytes": "pass",
+      "checked_fields": [
+        "FM pitch/onset/duration",
+        "A/P total ticks",
+        "PCM onset/duration/sample slot/hold/rate/pan/gate ticks",
+        "PDX sample bytes/lengths/table bounds/empty slots"
+      ],
+      "mdx_sha256": "df2c5d7bd5260232f237e0325234f5db4319434200bef559df566a521b7e5bb8",
+      "extraction_comparison": "not_run",
+      "native_mmdsp_listening": "unverified"
+    },
+    {
+      "stem": "HOLDEND",
+      "purpose": "One held sample across two notes, second unheld note releases before asset exhaustion",
+      "end_ticks": 384,
+      "nominal_seconds": 1.572864,
+      "authored_intent_comparison": "pass",
+      "pdx_bytes": "pass",
+      "checked_fields": [
+        "FM pitch/onset/duration",
+        "A/P total ticks",
+        "PCM onset/duration/sample slot/hold/rate/pan/gate ticks",
+        "PDX sample bytes/lengths/table bounds/empty slots"
+      ],
+      "mdx_sha256": "8540bdfb069b2d6cb0135a0c1816d86182ecd6047d7cd32919966d1f23b1643d",
+      "extraction_comparison": "not_run",
+      "native_mmdsp_listening": "unverified"
+    },
+    {
+      "stem": "RATES",
+      "purpose": "Same short asset at F4/F0 and p1/p2/p3, separated by rests",
+      "end_ticks": 240,
+      "nominal_seconds": 0.98304,
+      "authored_intent_comparison": "pass",
+      "pdx_bytes": "pass",
+      "checked_fields": [
+        "FM pitch/onset/duration",
+        "A/P total ticks",
+        "PCM onset/duration/sample slot/hold/rate/pan/gate ticks",
+        "PDX sample bytes/lengths/table bounds/empty slots"
+      ],
+      "mdx_sha256": "e77265c6d413e480a654a416680812c4f4f354f69ca65f5da543bfaeca0db2c2",
+      "extraction_comparison": "not_run",
+      "native_mmdsp_listening": "unverified"
+    },
+    {
+      "stem": "FMSTATE",
+      "purpose": "Held FM pitch with in-note volume/pan changes, voice change, octave change and finite repeat",
+      "end_ticks": 192,
+      "nominal_seconds": 0.786432,
+      "authored_intent_comparison": "pass",
+      "pdx_bytes": "pass",
+      "checked_fields": [
+        "FM pitch/onset/duration",
+        "A/P total ticks",
+        "PCM onset/duration/sample slot/hold/rate/pan/gate ticks",
+        "PDX sample bytes/lengths/table bounds/empty slots"
+      ],
+      "mdx_sha256": "35d1ddf86c9d8edcb9663b8b7b003289e8536231d20900384b0e2f4f62cc4074",
+      "extraction_comparison": "not_run",
+      "native_mmdsp_listening": "unverified"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "authored": true,
+  "clock_hz": 4000000,
+  "nominal_native_frame_rate": 31250,
+  "source_samples": 66150,
+  "channels": 1,
+  "expected_natural_stop_seconds": 1.048576,
+  "description": "One-shot unsigned PCM triangle and a finite FM note"
+}

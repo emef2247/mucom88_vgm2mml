@@ -1,0 +1,5 @@
+#title rhythm_six
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+G T120 v40,20,18,16,14,12,10 r4 L @1 c8 r8 @2 c8 r8 @4 c8 r8 @8 c8 r8 @16 c8 r8 @32 c8 r8 @3 c8 r8

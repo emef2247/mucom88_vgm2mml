@@ -1,0 +1,56 @@
+{
+  "schema": "pcm-ir-reference-expectation-v1",
+  "variant": "decoded-mdx-pdx-requests",
+  "provenance": "direct original MDX commands and PDX table/payload; not converter output",
+  "expectation_domain": "neutral samples plus reference playback requests; not observed source PcmAnalysis",
+  "clock_domain": "MDX ticks; original VGM timeline not captured",
+  "samples": [
+    {
+      "sample_id": 0,
+      "codec": "msm6258-adpcm4-low-first",
+      "sha256": "d478bb3a0d8665a26c82075505186c3681e48b7b012b05d013f3d9c8f7ef90db",
+      "byte_length": 60000,
+      "nominal_nibbles": 120000,
+      "encoded_file": "samples/000.adpcm"
+    },
+    {
+      "sample_id": 1,
+      "codec": "msm6258-adpcm4-low-first",
+      "sha256": "a8e969fc3045080f7f1d508c206378ec8eaf2530730fe986273ccea4ccde12fa",
+      "byte_length": 400,
+      "nominal_nibbles": 800,
+      "encoded_file": "samples/001.adpcm"
+    }
+  ],
+  "sample_bindings": [
+    {
+      "bank": 0,
+      "slot": 0,
+      "sample_id": 0
+    },
+    {
+      "bank": 0,
+      "slot": 1,
+      "sample_id": 1
+    }
+  ],
+  "playback_requests": [],
+  "termination": [
+    {
+      "kind": "finite_end",
+      "tick": 192,
+      "file_offset": 140,
+      "physical_stop_verified": false
+    }
+  ],
+  "static_decode_complete": true,
+  "observed_source_fields": {
+    "transfer_timestamps": null,
+    "source_event_ids": null,
+    "decoder_reset": null,
+    "consumed_nibbles": null,
+    "physical_stop": null
+  },
+  "extraction_comparison": "not_run",
+  "native_playback_verification": "unverified"
+}

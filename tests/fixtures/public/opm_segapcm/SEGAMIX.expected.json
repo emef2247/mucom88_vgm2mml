@@ -1,0 +1,8 @@
+{
+  "authored": true,
+  "clock_hz": 4000000,
+  "nominal_native_frame_rate": 31250,
+  "source_samples": 55125,
+  "channels": 2,
+  "description": "Overlapping left/right hardware loops; live volume and delta changes"
+}

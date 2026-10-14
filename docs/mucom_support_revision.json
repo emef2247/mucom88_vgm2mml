@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-14",
+  "scope": "YM2608 target-adapter corrections and diagnostics",
+  "user_regression_policy": "Stop and notify before any further private failing-song validation. User runs private regression.",
+  "checks": {
+    "focused_public_synthetic_tests": 70,
+    "focused_failures": 0,
+    "focused_errors": 0,
+    "additional_loop_tests": 9,
+    "additional_loop_failures": 0,
+    "note": "Loop suite adds one new native partial-mask carry regression to the initial70-test run; overlapping tests are not separate unique cases",
+    "public_muc_mub_inputs": 26,
+    "public_muc_mub_success": 26,
+    "post_compiler_diagnostic_tests": {
+      "run": 14,
+      "failures": 0,
+      "errors": 0
+    }
+  },
+  "public_compile_output": "outputs/diagnostics/ym2608_support_revision/public_compile/results.csv",
+  "limits": [
+    "CH3 special/CSM remain unimplemented",
+    "Nonmatching positive loop carry needs further projection",
+    "Shared overlapping SSG hardware envelopes remain unimplemented",
+    "SSG driver adds diagnosed same-clock shape resets; waveform/envelope phase not certified",
+    "Real positive-duration PCM continuation/repeat remains unimplemented",
+    "Installed compiler cannot encode FM pan0 or direct B4; explicit rejection",
+    "Large native raw/State CSV parse/dump costs may still time out"
+  ],
+  "implementation_sha256": {
+    "py/opna_muc.py": "4d12e666709d71c9ef923f55872fb3c86040478307d91827db48d1398da43afb",
+    "py/opna_music.py": "3df2fd59570d8c39e4fbeaae48c80a32dab681c7fca04256bcdd98845fc53f7e",
+    "py/mucom_fm.py": "2bf164c4ce522e5922971b01649a5252683a34852344529c964f8cfaad8b9216",
+    "py/mucom_aux.py": "2c8dedc5cd9adada1d147161f4e204945d4b2042c205369616d18f3f801aa300",
+    "scripts/export_mucom.py": "282490fd768415d047390860ee9345f6b83979739de09d3fe8ac8becbe461641",
+    "scripts/mucom_compiler.py": "521366b75545e8450fb1508c8e3a4f950631c98b18ae2183a19a422c3c0aebc6",
+    "scripts/verify_mucom_native.py": "6290df307ec452e1ef7089b6aaf09bee58fc7b7a86e6b3853cfdd3c9ef17e7dc"
+  }
+}

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.muc -text
+*.vgm -text
+*.vgz -text
+*.dat -text
+*.bin -text
+*.wav -text
+*.mub -text

@@ -1,0 +1,24 @@
+{
+  "source_end_vgmticks": 46,
+  "transfer_ticks": [
+    0,
+    6,
+    12,
+    17,
+    24,
+    30,
+    36,
+    41
+  ],
+  "transfer_bytes": [
+    18,
+    52,
+    86,
+    120,
+    18,
+    52,
+    86,
+    120
+  ],
+  "sample_sha256": "bf7cbe09d71a1bcc373ab9a764917f730a6ed951ffa1a7399b7abd8f8fd73cb4"
+}

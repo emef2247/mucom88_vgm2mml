@@ -1,0 +1,15 @@
+title OPM decompiler fixture: song_loop
+
+pdxfile 
+SetTempo 122 BPM (216)
+SetVoiceNum 0
+SetVolume 10
+Note 45 (c4) duration 11 (192 / 17)
+Note 47 (d4) duration 11 (192 / 17)
+RepeatStart 3 0
+Note 49 (e4) duration 11 (192 / 17)
+Note 50 (f4) duration 11 (192 / 17)
+RepeatEnd -7
+Note 52 (g4) duration 11 (192 / 17)
+Rest 23 (192 / 8)
+PerformanceEnd -16

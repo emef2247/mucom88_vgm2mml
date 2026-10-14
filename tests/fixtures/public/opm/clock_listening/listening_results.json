@@ -1,0 +1,58 @@
+{
+  "schema": "clock-listening-results-v1",
+  "date": "2026-10-10",
+  "artifact_identity": "Host hashes; copied emulator files not independently hashed",
+  "evidence": "User XM6 TypeG / MMDSP listening; clock hypothesis not established",
+  "cases": [
+    {
+      "file": "outputs/listen/clock_native/tracks/CLOCK/CLOCK.mdx",
+      "bytes": 225,
+      "sha256": "953672d985c1d37bafd430872276d5680b4f3a088bceb44522dd2dc2910d73e6",
+      "native_load": "fail",
+      "native_audible": "not_run",
+      "native_animation": "not_run",
+      "observation": "MMDSP reports no song data / file read error",
+      "cause": "unknown"
+    },
+    {
+      "file": "outputs/listen/clock_listening_reference/CLK0256.MDX",
+      "bytes": 500,
+      "sha256": "7ec1052befdd448eaeb9f2e9cc98d00c20e0f0143e29996ccfab93bd244f4514",
+      "native_load": "pass",
+      "native_audible": "fail",
+      "native_animation": "fail",
+      "observation": "User reports no sound and no animation",
+      "cause": "unknown"
+    },
+    {
+      "file": "outputs/listen/clock_listening_reference/CLK16384.MDX",
+      "bytes": 183,
+      "sha256": "ecc293d9bcecb9ed0d18d6f2d6415969ccfeba2dbb7cf63944afd253a7a6cd40",
+      "native_load": "pass",
+      "native_audible": "fail",
+      "native_animation": "fail",
+      "observation": "User reports no sound and no animation",
+      "cause": "unknown"
+    },
+    {
+      "file": "outputs/listen/clock_listening_reference/CLK2048.MDX",
+      "bytes": 209,
+      "sha256": "a7ff3d5ca7e6ea0f05211f74c024e3b5570fd406e7e5f3a1757766990622fccf",
+      "native_load": "pass",
+      "native_audible": "fail",
+      "native_animation": "fail",
+      "observation": "User reports no sound and no animation",
+      "cause": "unknown"
+    },
+    {
+      "file": "outputs/listen/clock_listening_reference/CLK8192.MDX",
+      "bytes": 182,
+      "sha256": "e1df583b3e24c91225ade8d6ccb7e16bda1c55e962f8595f52915e40e9d65a9a",
+      "native_load": "pass",
+      "native_audible": "fail",
+      "native_animation": "fail",
+      "observation": "User reports no sound and no animation",
+      "cause": "unknown"
+    }
+  ]
+}

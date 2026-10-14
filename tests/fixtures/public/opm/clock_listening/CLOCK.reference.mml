@@ -1,0 +1,20 @@
+#title "Public FM clock 16384 us"
+; Original MIT public test: identical physical performance at each clock.
+@0 = {
+31,0,0,15,0,127,0,1,0,0,0,
+31,0,0,15,0,127,0,1,0,0,0,
+31,0,0,15,0,127,0,1,0,0,0,
+31,0,0,15,0,24,0,1,0,0,0,
+0,7,15
+}
+
+A @0 @t192 q8 o4
+A v12 p1 c%48 y8,0 r%8
+A v10 p2 d%48 y8,0 r%8
+A v12 p3 e%48 y8,0 r%8
+A v10 p1 g%48 y8,0 r%8
+A v12 p2 a%48 y8,0 r%8
+A v10 p3 g%48 y8,0 r%8
+A v12 p1 e%48 y8,0 r%8
+A v10 p2 c%48 y8,0 r%8
+A y8,0 r%64

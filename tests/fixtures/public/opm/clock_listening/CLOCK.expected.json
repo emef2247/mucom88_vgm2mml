@@ -1,0 +1,110 @@
+{
+  "provenance": "Original MIT authored FM test; native MXC plus soundlog FM replay",
+  "source_clock_us": 16384,
+  "physical_reference_clock_us": 16384,
+  "physical_end_units": 512,
+  "timeline": [
+    [
+      48,
+      "0",
+      "12288/15625",
+      1,
+      12
+    ],
+    [
+      50,
+      "14336/15625",
+      "26624/15625",
+      2,
+      10
+    ],
+    [
+      52,
+      "28672/15625",
+      "8192/3125",
+      3,
+      12
+    ],
+    [
+      55,
+      "43008/15625",
+      "55296/15625",
+      1,
+      10
+    ],
+    [
+      57,
+      "57344/15625",
+      "69632/15625",
+      2,
+      12
+    ],
+    [
+      55,
+      "14336/3125",
+      "83968/15625",
+      3,
+      10
+    ],
+    [
+      52,
+      "86016/15625",
+      "98304/15625",
+      1,
+      12
+    ],
+    [
+      48,
+      "100352/15625",
+      "22528/3125",
+      2,
+      10
+    ]
+  ],
+  "variants": [
+    {
+      "stem": "CLK0256",
+      "clock_us": 256,
+      "duration_seconds": 8.388608,
+      "mdx_sha256": "7ec1052befdd448eaeb9f2e9cc98d00c20e0f0143e29996ccfab93bd244f4514",
+      "vgm_sha256": "2968b7b4d5758d94b4d0b6217667e3870b80c4ec9ba5ea1167c8cbc95b5c65f3",
+      "attacks": 8,
+      "releases": 8,
+      "static_performance_comparison": "pass",
+      "listening": "unverified"
+    },
+    {
+      "stem": "CLK2048",
+      "clock_us": 2048,
+      "duration_seconds": 8.388608,
+      "mdx_sha256": "a7ff3d5ca7e6ea0f05211f74c024e3b5570fd406e7e5f3a1757766990622fccf",
+      "vgm_sha256": "a6ccad5d7e1f200284b3fadbc7564b5faedf1798c1380814d282b2e0b4b87422",
+      "attacks": 8,
+      "releases": 8,
+      "static_performance_comparison": "pass",
+      "listening": "unverified"
+    },
+    {
+      "stem": "CLK8192",
+      "clock_us": 8192,
+      "duration_seconds": 8.388608,
+      "mdx_sha256": "e1df583b3e24c91225ade8d6ccb7e16bda1c55e962f8595f52915e40e9d65a9a",
+      "vgm_sha256": "2fcc28aa4ef7b741c813346b70cbf872e6e02f78e1ad084fe15213c8b61f663b",
+      "attacks": 8,
+      "releases": 8,
+      "static_performance_comparison": "pass",
+      "listening": "unverified"
+    },
+    {
+      "stem": "CLK16384",
+      "clock_us": 16384,
+      "duration_seconds": 8.388608,
+      "mdx_sha256": "ecc293d9bcecb9ed0d18d6f2d6415969ccfeba2dbb7cf63944afd253a7a6cd40",
+      "vgm_sha256": "0d58b10e2c4a1df9f42c153ca813d20294fb020d3f94a5bda3ec6a1c2f00f723",
+      "attacks": 8,
+      "releases": 8,
+      "static_performance_comparison": "pass",
+      "listening": "unverified"
+    }
+  ]
+}

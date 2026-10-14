@@ -1,0 +1,3 @@
+sample_id,codec,sha256,byte_length,nominal_nibbles,encoded_file
+0,okim6258-adpcm4-low-first,d478bb3a0d8665a26c82075505186c3681e48b7b012b05d013f3d9c8f7ef90db,60000,120000,samples/000.adpcm
+1,okim6258-adpcm4-low-first,a8e969fc3045080f7f1d508c206378ec8eaf2530730fe986273ccea4ccde12fa,400,800,samples/001.adpcm

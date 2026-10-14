@@ -1,0 +1,33 @@
+{
+  "schema": "extended-tail-listening-v1",
+  "date": "2026-10-10",
+  "evidence": "User confirms all six current root MDX play correctly and stop correctly in MMDSP",
+  "artifact_identity": "Workspace hashes checked; user reported copied filenames, copied-file hashes not independently measured",
+  "target_layout": "16 tracks; initial E8; inactive Q-W",
+  "pdx_sha256": "7b77136e61591c1486f9f334d32121bea61fc1fb16083dcf95d20d19db80a395",
+  "cases": {
+    "RATES": {
+      "mdx_sha256": "b4bd0b64e163b4ba7c97e38f5bfffaea0d8b72a05e360abf9f14ced0ee2f4f44",
+      "natural_end": "pass",
+      "display": "unverified",
+      "sustained_silence": "pass",
+      "audible": "pass"
+    },
+    "RATESF": {
+      "mdx_sha256": "2f50c3924c245673546b53f022167acdba4d4ea2aa5f89e9710a6094f810220a",
+      "natural_end": "pass",
+      "display": "unverified",
+      "sustained_silence": "pass",
+      "audible": "pass"
+    },
+    "RATESP": {
+      "mdx_sha256": "a4411707c69f95660413ff218b9c57429bfe0ab64b518cbe6dd0bf36ba83cc91",
+      "natural_end": "pass",
+      "display": "unverified",
+      "sustained_silence": "pass",
+      "audible": "pass"
+    }
+  },
+  "previous_standard9": "listening_results.json",
+  "roundtrip_validation": "not_run"
+}

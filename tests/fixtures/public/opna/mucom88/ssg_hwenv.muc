@@ -1,0 +1,5 @@
+#title ssg_hwenv
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+D T120 P1 v10 o5 q4 r4 L s9 m1024 c4 r4 s10 m2048 e4 r4 s13 m512 g4 r4

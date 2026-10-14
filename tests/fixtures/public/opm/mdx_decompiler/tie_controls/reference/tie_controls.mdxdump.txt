@@ -1,0 +1,12 @@
+title OPM decompiler fixture: tie_controls
+
+pdxfile 
+SetTempo 122 BPM (216)
+SetVoiceNum 0
+SetVolume 10
+DisableKeyOff
+Note 45 (c4) duration 11 (192 / 17)
+Note 45 (c4) duration 11 (192 / 17)
+Pan 1
+Note 47 (d4) duration 23 (192 / 8)
+Rest 23 (192 / 8)

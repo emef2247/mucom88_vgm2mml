@@ -1,0 +1,6 @@
+#title fm_notes
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+#voice synthetic_voice.dat
+A T120 @1 v12 o4 l4 q4 r4 L c d e8& e8 r4 g2 r2

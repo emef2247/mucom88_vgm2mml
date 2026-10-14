@@ -1,0 +1,23 @@
+#title { "Chords Mix" }
+
+
+#comment gh002
+
+; 目的: 複数チャネル同時発音時の音色/音量/KeyOn 同期
+
+; ChA/B/C: それぞれ異パッチ/音量で和音 C, F, G を進行
+
+; 短い進行: | C | F | G | C |
+
+
+A @1 v13 o4 l8 c e g c e g c e
+
+B @3 v12 o3 l8 c f a c f a c f
+
+C @5 v11 o3 l8 g b d g b d g b
+
+A @1 v13 o4 l4 c r
+
+B @3 v12 o3 l4 c r
+
+C @5 v11 o3 l4 g r

@@ -1,0 +1,12 @@
+#title mixed_intro
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+#pcm synthetic_pcm.bin
+#voice synthetic_voice.dat
+A T120 @1 v10 o4 q4 c4 r2. L @2 c4 e4 g4 r4
+D E255,255,255,255,0,255 P1 v8 o5 q4 c4 r4 v0 r2
+E E255,255,255,255,0,255 P1 v6 o4 q4 e4 r4 v0 r2
+F E255,255,255,255,0,255 P1 v6 o4 q4 g4 r4 v0 r2
+G v36,18,16,14,12,10,8 @3 c8 r8 y16,$BF r2.
+K @2 o1 v180 p3 q4 c8 r8 v0 r2.

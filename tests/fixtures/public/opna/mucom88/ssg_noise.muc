@@ -1,0 +1,5 @@
+#title ssg_noise
+#composer emef2247
+#author emef2247
+; Authored public test score. One loop command in the whole file.
+D T120 E255,255,255,255,0,255 v9 o5 q4 r4 L P2 w4 c4 r4 w16 c4 r4 P3 c4 P1 e4 r2

@@ -1,0 +1,16 @@
+title OPM synthetic: Finite nested phrases and ordinary retriggers
+
+pdxfile 
+SetTempo 122 BPM (216)
+SetVoiceNum 0
+SetVolume 10
+RepeatStart 3 0
+RepeatStart 2 0
+Note 45 (c4) duration 11 (192 / 17)
+Note 47 (d4) duration 11 (192 / 17)
+Note 49 (e4) duration 11 (192 / 17)
+Note 52 (g4) duration 11 (192 / 17)
+RepeatEnd -11
+Rest 23 (192 / 8)
+RepeatEnd -18
+Rest 23 (192 / 8)

@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-14",
+  "stage": "native musical MUC connection",
+  "target": "YM2608 / native MUCOM88 MUB8",
+  "public_inputs": 26,
+  "muc_and_mub_success": 26,
+  "native_fm_checks": 20,
+  "native_fm_checks_passed": 20,
+  "scope": "ordered FM key edges, projected gate times and normalized positive control interval count/boundaries/values; looped inputs two traversals",
+  "outputs": "outputs/mucom88/integration_verified",
+  "evidence_files": [
+    "results.csv",
+    "native_checks.json",
+    "tests.log"
+  ],
+  "focused_windows_tests": {
+    "run": 61,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "inherited_compatibility_wsl_tests": {
+    "run": 71,
+    "passed": 70,
+    "known_baseline_failures": 1
+  },
+  "reset_full_suite": {
+    "run": 797,
+    "failures": 9,
+    "errors": 11,
+    "skipped": 81,
+    "status": "inherited failures reproduced in source; not rerun as a green integrated full-suite claim"
+  },
+  "limits": [
+    "SSG/rhythm/PCM equivalence is not part of the native FM checker",
+    "Explicitly collapsed internal intervals and released-envelope control equivalence are not certified",
+    "Compilation/control checks do not certify waveform or listening identity"
+  ],
+  "implementation_sha256": {
+    "vgm2mml.py": "fbc37247fe4144054ce680ce3f51ae2c62a3a62ff5e5f2f091a116a621b36392",
+    "py/opna_music.py": "a39677b7afe2f133e03e0a675d6a45011343ce83bda0a6eebff04dac57c3d168",
+    "py/musical_structure.py": "c561d952e557e26e1bc4de1c17ed1431de3806d4473bcce03e980b6c0ff42e23",
+    "py/opna_muc.py": "1e98c580a8284a5691dfbb08394e4a85d6840bb8f2f8b5bfb2cba9c42551da3d",
+    "py/mucom_fm.py": "efeb4e09fe492495b6898546fd05cd4b69743a72c618e9411ea359ef6adb477d",
+    "py/mucom_aux.py": "3f5c17d1e398d45e58ba1a4000554a697d93f7a29f8c6dc94846fe32fe514b83",
+    "scripts/export_mucom.py": "02df9e03c443e6a9ee3a894bb9eca1b167046b5d5a49835a8696b885d37cee92",
+    "scripts/verify_mucom_native.py": "c03cefb833542c75c7f8bbeac89daf3da363b415849e69a74346696dcce28f4f"
+  },
+  "additional_windows_cli_and_timing_tests": {
+    "run": 9,
+    "failures": 0,
+    "errors": 0
+  },
+  "focused_wsl_mucom_tests": {
+    "run": 36,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "skipped_scope": "Windows-only native compiler/replay unit probe; actual batch compiler runs checked separately"
+  },
+  "wsl_native_batch": {
+    "from_fm_inputs": 16,
+    "from_fm_success": 16,
+    "pcm_bank_mub_input": "pcm_samples.vgm",
+    "pcm_bank_mub_status": "success"
+  },
+  "snapshot_kind": "historical first MUC connection before general YM2608 support corrections"
+}

@@ -1,0 +1,202 @@
+{
+  "schema": "native-listening-followup-v1",
+  "provenance": "user report in XM6TypeG/MMDSP; hashes read from host artifacts, emulator copies not hashed",
+  "artifact_generation_status": "success for 11/11; independent of native outcomes",
+  "records": [
+    {
+      "input": "long_hold_stop.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "058846c08af2ae5a0abc5a191d810187745da0cf730d012aaf027233544ead61",
+          "bytes": 126
+        },
+        "pdx": {
+          "sha256": "167e161532c4f3dd2701f3e4db5690c9d4a6041974a73fd9e3fed72ca75c8e17",
+          "bytes": 1792
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "opm_pcm_rates.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "1f7122457d1728534edfd960ea4ea9f375c594f00566b5e5a13360859505ab36",
+          "bytes": 140
+        },
+        "pdx": {
+          "sha256": "791c7d1f2378d347a9f7368c85a62f982eafebebbeab0bb49dcb9c0291057af8",
+          "bytes": 896
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "reset_pan_hold.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "4635995a1a2d253f963da2c4885031411f92a8828e321a0d8c4ae19f2cfd2591",
+          "bytes": 135
+        },
+        "pdx": {
+          "sha256": "6b2499597f9cbdfd61115449504b63f6a4b7a0d50e8f8f4d028e732b8bc2792b",
+          "bytes": 1280
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream93_count.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "e9448da3352fc4bbd20f26cbcaaff9c8b40c5995a9f5d8ba0c1b1041ec888843",
+          "bytes": 118
+        },
+        "pdx": {
+          "sha256": "b9035a52ee3ed2cb2a2d20b193594cea0351298edfbd362068ee8ceff277f6c7",
+          "bytes": 772
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream93_to_end.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "ccc6493024cd7e1cc72fd3ac161c53a3b0d8bad76d231aeca1101be0d49e7d91",
+          "bytes": 120
+        },
+        "pdx": {
+          "sha256": "b9035a52ee3ed2cb2a2d20b193594cea0351298edfbd362068ee8ceff277f6c7",
+          "bytes": 772
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream94_supply_stop.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "d77b2fd7458ef881a5a8f83f428fde33ee4222e6e8a07b55ad3f5d585e84d11f",
+          "bytes": 130
+        },
+        "pdx": {
+          "sha256": "3def180377803acc02c58e87d00d4f903a93be36c52a7ec8810c002ba91f9b90",
+          "bytes": 770
+        }
+      },
+      "load": "fail",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream95_finite.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "7b362335fe207816e0cd7530b205787317e3b0231397213c6137103de18fbe13",
+          "bytes": 120
+        },
+        "pdx": {
+          "sha256": "b9035a52ee3ed2cb2a2d20b193594cea0351298edfbd362068ee8ceff277f6c7",
+          "bytes": 772
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream_delayed_chip_stop.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "74e2f2fa02102c8a32b8048473421a65de8d201923cd959038edbeaa665ae293",
+          "bytes": 138
+        },
+        "pdx": {
+          "sha256": "b9035a52ee3ed2cb2a2d20b193594cea0351298edfbd362068ee8ceff277f6c7",
+          "bytes": 772
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": true
+    },
+    {
+      "input": "stream_natural_end.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "77023c72a59f31904b4caaf87ea93cbf4d536c24dcae573efa4ddee185163001",
+          "bytes": 126
+        },
+        "pdx": {
+          "sha256": "b9035a52ee3ed2cb2a2d20b193594cea0351298edfbd362068ee8ceff277f6c7",
+          "bytes": 772
+        }
+      },
+      "load": "not_individually_reported",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream_stopped_supply_restart.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "128ef187312896cb63c8975972c77334b6a9bc8b828b823123f20c1c3c5b88bf",
+          "bytes": 160
+        },
+        "pdx": {
+          "sha256": "01c672951657ed257b88e18a6d00fd2b489210731cb0d35915ec1971341c5be6",
+          "bytes": 775
+        }
+      },
+      "load": "fail",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    },
+    {
+      "input": "stream_supply_only.vgm",
+      "artifacts": {
+        "mdx": {
+          "sha256": "d82ac2081c6e3a49d645d8b4456b0ed6cd12ea0104bb65ecfd68cc7f3f36ae79",
+          "bytes": 63
+        },
+        "pdx": null
+      },
+      "load": "fail",
+      "audio": "click_like",
+      "ending": "unverified",
+      "display": "possible_brief_meter_activity_unverified",
+      "additional_screenshot_load_error": false
+    }
+  ]
+}
