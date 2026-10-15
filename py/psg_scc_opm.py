@@ -175,7 +175,7 @@ class AdditivePlan:
 
 
 def project(psg, scc, *, psg_clock, scc_clock, end_vgmticks, psg_gain=None,
-            scc_gain=.125, psg_model='additive', pitch_policy=None):
+            scc_gain=.125, psg_model='additive', pitch_policy=None, force=False):
     if psg_model not in ('fm', 'additive'):
         raise ValueError('PSG model must be fm or additive')
     pitch_policy = pitch_policy or ('clamp' if psg_model == 'fm' else 'error')
@@ -189,7 +189,7 @@ def project(psg, scc, *, psg_clock, scc_clock, end_vgmticks, psg_gain=None,
     plan = AdditivePlan([], [], {}, end_vgmticks,
                         dict(psg_clock=psg_clock, scc_clock=scc_clock, target_clock=OPM_CLOCK,
                              psg_gain=psg_gain, scc_gain=scc_gain, psg_model=psg_model,
-                             pitch_policy=pitch_policy, scc_model='additive'))
+                             pitch_policy=pitch_policy, scc_model='additive', force_enabled=force, forced_omissions=[]))
     for chip, channels, clock, gain in [('scc', scc.segments, scc_clock, scc_gain),
                                         ('psg', psg, psg_clock, psg_gain)]:
         for ch, segments in sorted(channels.items()):
@@ -201,7 +201,7 @@ def project(psg, scc, *, psg_clock, scc_clock, end_vgmticks, psg_gain=None,
             control = (voice_profile.feedback << 3 | voice_profile.algorithm) if fm else 7
             # Silent-only parts still appear in the projection CSV, but receive
             # no target oscillator. Hardware-EG/noise checks below are separate.
-            used = any(s.volume > 0 and (s.enabled if chip == 'scc' else s.mode)
+            used = any((s.volume > 0 or (chip == 'psg' and s.envelope_enabled)) and (s.enabled if chip == 'scc' else s.mode)
                        for s in segments)
             if used and clock <= 0:
                 raise ValueError('Missing source clock for an active part')
@@ -231,13 +231,24 @@ def project(psg, scc, *, psg_clock, scc_clock, end_vgmticks, psg_gain=None,
                 sample = s.vgmticks
                 if sample is None or s.vgmticks_end is None or not 0 <= sample <= s.vgmticks_end <= end_vgmticks:
                     raise ValueError('Segment needs valid native sample boundaries')
+                omission_reason = ''
                 if chip == 'psg' and s.mode and (s.volume or s.envelope_enabled):
                     if s.envelope_enabled or s.mode in (2, 3):
-                        raise ValueError(f'PSG ch{ch} row{row_id}: noise/hardware EG not implemented')
-                active = bool(s.volume and (s.enabled if chip == 'scc' else s.mode))
+                        if not force:
+                            raise ValueError(f'PSG ch{ch} row{row_id}: noise/hardware EG not implemented')
+                        reasons = []
+                        if s.mode in (2, 3):
+                            reasons.append('psg_noise')
+                        if s.envelope_enabled:
+                            reasons.append('psg_hardware_envelope')
+                        omission_reason = '+'.join(reasons)
+                        plan.settings['forced_omissions'].append(dict(source_ch=ch, source_row=row_id,
+                            source_channel=ch+1, start_vgmticks=sample, end_vgmticks=s.vgmticks_end,
+                            reason=omission_reason))
+                active = bool(not omission_reason and s.volume and (s.enabled if chip == 'scc' else s.mode))
                 segment_clock = getattr(s, 'source_clock_hz', clock)
                 freq = source_frequency(chip, segment_clock, s.tone_period) if active else 0.
-                approximation = ''
+                approximation = '--force: ' + omission_reason + '; entire interval muted' if omission_reason else ''
                 if active and freq:
                     try:
                         opm_pitch(freq)

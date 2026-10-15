@@ -142,6 +142,8 @@ def build_parser():
     fidelity.add_argument('--pcm-policy', choices=['strict', 'best-effort'],
                         help='Native PCM target policy: strict (default) blocks known loss; best-effort reports defined loss')
     diagnostic = parser.add_argument_group('Diagnostic and development options')
+    diagnostic.add_argument('--force', action='store_true',
+                            help='Partial MDX output: omit unsupported OPNA HW effects and excess PCM samples; list all losses')
     diagnostic.add_argument('--fm-only', action='store_true',
                             help='OPM + SegaPCM diagnostic export: retain native SegaPCM evidence, omit it from MDX MML')
     diagnostic.add_argument('--dump-passes', action='store_true',
@@ -254,6 +256,11 @@ def _inherited_main():
             if (path := Path(song_dir) / (base_name + '.' + name)).is_file() and path not in owned_binary]
         suffixes = ('.mml', '.normalization.json') if args.target == 'mgs' else (
             '.mdx.mml', '.opna-opm.json', '.mdx.normalization.json',
+            '.opna_ssg.omissions.csv', '.opna_ssg.omissions.json',
+            '.opna_fm.omissions.csv', '.opna_fm.omissions.json', '.opna.unmodeled.csv',
+            '.opna_force.skipped_registers.csv', '.opna_force.skipped_registers.json',
+            '.psg_force.skipped_registers.csv', '.psg_force.skipped_registers.json',
+            '.pcm.force_capacity.csv', '.pcm.force_capacity.json',
             '.mdx.normalization.csv', '.mdx.before.normalize.mml',
             '.pcm.timing.json', '.pcm.assessment.json', '.pcm.assessment.csv',
             '.pcm_target_commands.csv', '.pcm_projection.csv', '.pcm_clock.csv', '.pcm_bindings.csv')
@@ -280,6 +287,10 @@ def _inherited_main():
                                     else ', '.join(usage['used_chips'])))
             route = 'mgs-compatibility'
         report['chip_projection'] = route
+        report['force_requested'] = args.force
+        if args.force and (args.target != 'mdx' or route not in (
+                'opna-fm-to-opm', 'native-opm-pcm', 'opm-segapcm-source', 'psg-scc-to-opm')):
+            raise ValueError('--force requires a supported MDX source route and --target mdx')
         if args.fm_only and (args.target != 'mdx' or route != 'opm-segapcm-source'
                              or 'opm' not in usage['used_chips']):
             raise ValueError('--fm-only requires an OPM + SegaPCM input and --target mdx')
@@ -319,7 +330,7 @@ def _inherited_main():
                 title=args.title if args.title is not None else title_from_gd3(vgm_path, base_name, args.gd3_language),
                 normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
                 pcm_generator=args.pcm_generator, pcm_policy=args.pcm_policy or 'strict',
-                pitch_policy=args.opm_pitch_policy or 'clamp')
+                pitch_policy=args.opm_pitch_policy or 'clamp', force=args.force)
         except (OSError, ValueError) as error:
             report.update(status='blocked', reason=str(error))
             record_report()
@@ -327,6 +338,16 @@ def _inherited_main():
         report.update(status='generated', projection_settings=settings)
         record_report()
         print(f'MDX MML: {mml}')
+        forced = settings['force_projection']
+        if forced['omitted_intervals']:
+            print(f"WARNING: --force muted {forced['omitted_intervals']} unsupported SSG intervals; "
+                  f"see {Path(song_dir) / forced['intervals_csv']}")
+        if args.force:
+            from opna_force import format_register_list, capacity_lines
+            print('\n'.join(format_register_list(forced['skipped_registers'])))
+            print('Register details: ' + str(Path(song_dir) / forced['registers_csv']))
+            for line in capacity_lines(song_dir, base_name):
+                print(line)
         allocation = settings['channel_allocation']
         for part in allocation['parts']:
             if part['status'] == 'assigned':
@@ -341,11 +362,9 @@ def _inherited_main():
               f'{pcm_ir["target_samples"]} MSM6258 samples, '
               f'{pcm_ir["pdx_distinct_samples"]} distinct PDX samples, '
               f'{pcm_ir["ineligible_playbacks"]} ineligible playbacks')
-        timing_path = Path(song_dir) / (base_name + '.pcm.timing.json')
-        if timing_path.is_file():
-            pcm_output = json.loads(timing_path.read_text(encoding='utf-8'))['pcm_pdx_file']
-            print(f'PDX: {Path(song_dir) / pcm_output}')
-            print(f'MDX: {Path(song_dir) / (base_name + ".mdx")}')
+        from opna_force import pcm_artifact_lines
+        for line in pcm_artifact_lines(song_dir, base_name):
+            print(line)
         assessment_path = Path(song_dir) / (base_name + '.pcm.assessment.json')
         if assessment_path.is_file():
             assessment = json.loads(assessment_path.read_text(encoding='utf-8'))
@@ -364,13 +383,18 @@ def _inherited_main():
                                 pitch_policy=args.opm_pitch_policy,
                                 dump_passes=args.dump_passes or args.debug,
                                 notation=args.notation, loops=not args.no_loops, song_loop=not args.no_song_loop,
-                                normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms)
+                                normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
+                                force=args.force)
         except (OSError, ValueError) as error:
             report.update(status='blocked', reason=str(error))
             record_report()
             parser.error(str(error))
         report.update(status='generated', projection_settings=plan.settings)
         record_report()
+        if args.force:
+            from opna_force import force_console_lines
+            for line in force_console_lines(song_dir, base_name):
+                print(line)
         print(f'MDX MML: {mml}')
         if normalize:
             with open(os.path.join(song_dir, base_name + '.mdx.normalization.json'), encoding='utf-8') as stream:
@@ -389,7 +413,8 @@ def _inherited_main():
                                 pitch_policy=args.opm_pitch_policy or 'clamp',
                                 normalization_ms=args.normalization_ms,
                                 segapcm_source=route == 'opm-segapcm-source',
-                                segapcm_pcm=route == 'opm-segapcm-source' and not args.fm_only)
+                                segapcm_pcm=route == 'opm-segapcm-source' and not args.fm_only,
+                                force=args.force)
         except (OSError, ValueError) as error:
             report.update(status='blocked', reason=str(error))
             record_report()
@@ -399,13 +424,14 @@ def _inherited_main():
         record_report()
         if args.fm_only:
             print('SegaPCM omitted from target (--fm-only); native evidence retained. No PDX generated.')
+        if args.force:
+            from opna_force import capacity_lines
+            for line in capacity_lines(song_dir, base_name):
+                print(line)
         print(f'MDX MML: {mml}')
-        pcm_report = os.path.join(song_dir, base_name + '.pcm.timing.json')
-        if os.path.isfile(pcm_report):
-            with open(pcm_report, encoding='utf-8') as stream:
-                pcm_output = json.load(stream)['pcm_pdx_file']
-            print(f'PDX: {os.path.join(song_dir, pcm_output)}')
-            print(f'MDX: {os.path.join(song_dir, base_name + ".mdx")}')
+        from opna_force import pcm_artifact_lines
+        for line in pcm_artifact_lines(song_dir, base_name):
+            print(line)
         assessment_path = os.path.join(song_dir, base_name + '.pcm.assessment.json')
         if os.path.isfile(assessment_path):
             with open(assessment_path, encoding='utf-8') as stream:
@@ -581,7 +607,7 @@ def main(argv=None):
         finally:
             sys.argv=previous
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('vgm',help='Input YM2608 VGM/VGZ')
+    parser.add_argument('vgm',help='Input supported VGM/VGZ')
     parser.add_argument('--target',choices=('mucom','mdx','mgs'),default='mucom',
                         help='mucom (default); inherited compatibility routes require an explicit target')
     parser.add_argument('--outdir',default='outputs')
@@ -597,6 +623,9 @@ def main(argv=None):
     parser.set_defaults(normalize_lengths=True)
     parser.add_argument('--normalization-ms',type=float,default=8.0,
                         help='Output normalization bound in milliseconds (default: 8)')
+    parser.add_argument('--pcm-only',action='store_true',help='Explicitly extract MSM6258/SegaPCM; retain source evidence, exclude other engines')
+    parser.add_argument('--pcm-policy',choices=('strict','best-effort'),default='strict',
+                        help='External PCM transcoding requires explicit best-effort')
     parser.add_argument('--no-loops',action='store_true',help='expand finite phrase repetitions')
     parser.add_argument('--no-song-loop',action='store_true',help='emit the first source traversal without a song loop')
     args=parser.parse_args(arguments)
@@ -606,7 +635,8 @@ def main(argv=None):
                            diagnostics_outdir=args.diagnostics_outdir,
                            timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
                            song_loop=not args.no_song_loop,
-                           normalize_lengths=args.normalize_lengths,normalization_ms=args.normalization_ms)
+                           normalize_lengths=args.normalize_lengths,normalization_ms=args.normalization_ms,
+                           pcm_only=args.pcm_only,pcm_policy=args.pcm_policy)
     except (ConversionError,OSError) as error:
         parser.exit(1,f'MUC conversion failed: {error}\n')
     print('MUC: '+result['muc_path'])

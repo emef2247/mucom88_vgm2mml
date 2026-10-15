@@ -610,6 +610,11 @@ supported compatibility output. Do not rewrite proven paths for superficial
 uniformity. Changing the default target does not invalidate established
 musical reconstruction and structural processing.
 
+Inherited MDX partial conversion and PDX capacity selection are target policies,
+not a blanket MUC force mode. Keep supported native SSG features and MUCOM
+bank constraints intact when syncing. Current shared modules and route boundaries
+are recorded in [code synchronization](x68k_code_sync.md).
+
 Share infrastructure for semantic reasons; specialize source-chip meanings
 and target behavior. Copied modules do not prove the new entry path actually
 executes their musical/normalization stages. Document connected stages and

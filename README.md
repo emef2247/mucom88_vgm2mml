@@ -24,6 +24,8 @@ VGM／VGZの実際のコマンドから使用音源を判定します。MUCOM88�
 
 既定のMUCOM88出力とは別に、MMLの生成に関しては以下オプションでMDX　MML/PCM IR, 及び MGS MMLを出力可能です。
 
+x68k側と共通の解析・継承MDXコードを同期しています。同期範囲とMUC固有処理の境界は[コード同期](docs/x68k_code_sync.md)を参照してください。
+
 ```bash
 python vgm2mml.py input.vgm --target mdx --outdir OUTPUT
 python vgm2mml.py input.vgm --target mgs --outdir OUTPUT
@@ -100,7 +102,7 @@ python scripts/export_mucom.py tests/fixtures/public/opna/pcm_controls \
 
 推定再生位置、出力時刻、再生速度の差は中間結果に保存します。repeat、曲ループをまたぐPCM保持音、再生中のアドレス／メモリモード変更などは未対応です。詳しくは[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。
 
-SegaPCMなど他形式PCMとの相互変換は未実装です。入力元のPCM情報と、出力先のcodec・バンク・再生制約を分けて扱う方針は、同じ資料に記録しています。
+MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向けPCM投影データを生成できます。`--pcm-policy best-effort` を指定し、OPMなど他音源を明示的に除外してPCMだけを取り出す場合は `--pcm-only` を併用してください。実行例・対応範囲・容量制限は[PCM相互変換](docs/pcm_interoperability.md)を参照してください。
 
 ## 主なオプション
 
@@ -126,6 +128,8 @@ SegaPCMなど他形式PCMとの相互変換は未実装です。入力元のPCM�
 |------------|------|
 | `--outdir DIRECTORY` | 一括出力先（必須） |
 | `--muc-only` | MUBコンパイルを行わずMUC・必要なバンクを出力 |
+| `--pcm-only` | MSM6258／SegaPCMを抽出し、他音源の除外を明示 |
+| `--pcm-policy best-effort` | 外部PCMのADPCM-B再圧縮を明示的に許容 |
 | `--mucom88 PATH` | MUB生成に使用するコンパイラを指定 |
 | `--timeout SECONDS` | 変換・コンパイルの各段階の上限（既定180秒） |
 
@@ -137,6 +141,8 @@ python scripts/export_mucom.py --help
 ```
 
 ## トラブルシューティング
+
+継承MDX経路では、未対応機能やPDX容量超過で停止した場合に `--force` で部分出力を試せます。元のSegment・PCM IRを保持し、省略内容を一覧とCSV／JSON・TXTへ記録します。指定例は `python vgm2mml.py input.vgm --target mdx --outdir outputs/mdx --pcm-policy best-effort --force` です。既定のMUC経路と `scripts/export_mucom.py` には、今回 `--force` を追加していません。詳細は[MDXの部分変換](docs/opna_force.md)を参照してください。
 
 エラーの詳細は、出力先の `results.csv` と各runの `report.txt`、変換・コンパイルログで確認できます。
 

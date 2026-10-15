@@ -66,7 +66,7 @@ def _dependencies(muc):
 
 
 def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song_loop=True,
-              normalize_lengths=True, normalization_ms=8.0):
+              normalize_lengths=True, normalization_ms=8.0, pcm_only=False, pcm_policy='strict'):
     normalization_samples(normalization_ms)
     source, output = Path(source).resolve(), Path(output).resolve()
     if timeout <= 0:
@@ -129,6 +129,8 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
                        '--outdir', str(run_folder), '--target', 'mucom', '--dump-passes',
                        '--normalize-lengths' if normalize_lengths else '--no-normalize-lengths',
                        '--normalization-ms', str(normalization_ms)]
+            command.extend(['--pcm-policy',pcm_policy])
+            if pcm_only: command.append('--pcm-only')
             if not song_loop:
                 command.append('--no-song-loop')
             try:
@@ -221,6 +223,8 @@ def main():
     parser.add_argument('--outdir', type=Path, required=True, help='Separate output tree')
     parser.add_argument('--mucom88', type=Path, help='Native unattended MUCOM88 compiler')
     parser.add_argument('--muc-only', action='store_true', help='MUC export without MUB compilation')
+    parser.add_argument('--pcm-only', action='store_true', help='Explicit external PCM extraction; other engines excluded')
+    parser.add_argument('--pcm-policy', choices=('strict','best-effort'), default='strict')
     parser.add_argument('--no-song-loop', action='store_true', help='Emit the first source traversal without a song loop')
     normalization = parser.add_mutually_exclusive_group()
     normalization.add_argument('--normalize-lengths', dest='normalize_lengths', action='store_true',
@@ -235,7 +239,8 @@ def main():
     try:
         rows = run_batch(args.input, args.outdir, mucom88=args.mucom88,
                          muc_only=args.muc_only, timeout=args.timeout, song_loop=not args.no_song_loop,
-                         normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms)
+                         normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
+                         pcm_only=args.pcm_only,pcm_policy=args.pcm_policy)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     expected = 'muc_only' if args.muc_only else 'success'

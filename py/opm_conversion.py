@@ -25,7 +25,7 @@ def _record_pcm_assessment(assessment, outdir, stem, *, requires_pdx, retained=(
     assessment.dump(outdir, stem)
 
 
-def convert(source, outdir, *, dump_passes=False, track_layout='channels', notation='structured', loops=True, title=None, gd3_language='ja', normalize_lengths=None, pcm_generator=None, pcm_policy='strict', normalization_validator=None, normalization_source_times=None, normalization_ms=8, pitch_policy='clamp', song_loop=True, replayed_song_loop=False, pcm_analysis_override=None, source_passes_outdir=None, segapcm_source=False, segapcm_pcm=False):
+def convert(source, outdir, *, dump_passes=False, track_layout='channels', notation='structured', loops=True, title=None, gd3_language='ja', normalize_lengths=None, pcm_generator=None, pcm_policy='strict', normalization_validator=None, normalization_source_times=None, normalization_ms=8, pitch_policy='clamp', song_loop=True, replayed_song_loop=False, pcm_analysis_override=None, source_passes_outdir=None, segapcm_source=False, segapcm_pcm=False, force=False):
     source, outdir = Path(source), Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     requested_normalization = normalize_lengths
@@ -42,6 +42,7 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
                             and path not in owned_binary)
     artifacts = list(owned_binary)
     for suffix in ('.mdx.mml', '.pcm.timing.json', '.pcm.assessment.json', '.pcm.assessment.csv',
+                   '.pcm.force_capacity.csv', '.pcm.force_capacity.json',
                    '.mdx.normalization.json', '.mdx.normalization.csv', '.mdx.before.normalize.mml',
                    '.mdx.pitch.csv'):
         artifacts.append(outdir / (source.stem + suffix))
@@ -174,6 +175,7 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
             def preflight_pcm(selected, *, omitted=()):
                 plan = project(pcm_analysis, stem=source.stem,
                                sample_multiplier=selected.sample_multiplier, policy=pcm_policy,
+                               force=force,
                                tick_mapper=selected.mdx_tick,
                                omit_playback_ids=omitted, normalization_ms=normalization_ms, song_loop_start=loop_start)
                 build_music(selected, analysis.segments, title=source.stem, loops=loops,
@@ -224,10 +226,16 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
             pcm_analysis.dump(outdir, source.stem)
         from pcm_mdx import project, write_pdx
         from pcm_assessment import ProjectionError
+        if force:
+            from pcm_force_capacity import select_capacity
+            select_capacity(pcm_analysis,
+                            omit_playback_ids=normalization.get('omitted_pcm_playback_ids', ()),
+                            normalization_ms=normalization_ms).dump(outdir, source.stem)
         try:
             candidate = project(pcm_analysis, stem=source.stem, sample_multiplier=multiplier,
                                 tick_mapper=projection.mdx_tick,
                                 policy=pcm_policy,
+                                force=force,
                                 omit_playback_ids=normalization.get('omitted_pcm_playback_ids', ()),
                                 normalization_ms=normalization_ms, song_loop_start=loop_start)
         except ProjectionError as error:
@@ -236,6 +244,8 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
                                   error.assessment) from error
         pcm_assessment = candidate.assessment
         candidate.dump(outdir, source.stem)
+        (outdir / (source.stem + '.pcm.timing.json')).write_text(
+            json.dumps(candidate.summary(), indent=2) + '\n', encoding='utf-8')
         record_pcm_assessment(pcm_assessment, requires_pdx=bool(candidate.bindings))
         if candidate.bindings:
             pcm_plan = candidate
@@ -248,8 +258,6 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
                 pcm_assessment.error(str(error))
                 record_pcm_assessment(pcm_assessment, requires_pdx=True)
                 raise
-            (outdir / (source.stem + '.pcm.timing.json')).write_text(
-                json.dumps(pcm_plan.summary(), indent=2) + '\n', encoding='utf-8')
             record_pcm_assessment(pcm_assessment, requires_pdx=True)
     from gd3 import read_gd3
     gd3 = read_gd3(source)
@@ -306,8 +314,8 @@ def convert(source, outdir, *, dump_passes=False, track_layout='channels', notat
         report = projection.timing_report()
         report['track_layout'] = track_layout
         report['notation'] = notation
-        if pcm_plan:
-            report.update(pcm_plan.summary())
+        if has_pcm:
+            report.update(candidate.summary())
         report['title_source'] = title_source
         if clock is not None:
             report['score_clock_inference'] = clock

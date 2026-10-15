@@ -192,7 +192,7 @@ def _mark_projected_evidence(folder, source, target, performance, projection, no
 
 
 def _convert(source, out, *, psg_gain=None, scc_gain=.125, title=None, psg_model='fm', pitch_policy=None,
-             notation='structured', loops=True, normalize_lengths=None, projection_mode='musical', normalization_ms=8, song_loop=True):
+             notation='structured', loops=True, normalize_lengths=None, projection_mode='musical', normalization_ms=8, song_loop=True, force=False):
     if notation not in ('structured', 'registers'):
         raise ValueError('PSG/SCC OPM notation must be structured or registers')
     source, out = Path(source), Path(out)
@@ -208,7 +208,10 @@ def _convert(source, out, *, psg_gain=None, scc_gain=.125, title=None, psg_model
     scc = build_scc(paths[3], str(out), stem=source.stem, dump_passes=True)
     plan = project(psg, scc, psg_clock=facts['psg_clock'], scc_clock=facts['scc_clock'],
                    end_vgmticks=facts['end_vgmticks'], psg_gain=psg_gain, scc_gain=scc_gain,
-                   psg_model=psg_model, pitch_policy=pitch_policy)
+                   psg_model=psg_model, pitch_policy=pitch_policy, force=force)
+    if force:
+        from psg_force import dump_decisions
+        plan.settings['force_projection'] = dump_decisions(plan, psg, out, source.stem)
     plan.settings.update(ay_type=facts['ay_type'], ay_flags=facts['ay_flags'],
                           silent_opll_writes=facts['silent_opll_writes'], absent_scc_writes=facts['absent_scc_writes'],
                           projection_mode=projection_mode)
@@ -255,7 +258,7 @@ def _convert(source, out, *, psg_gain=None, scc_gain=.125, title=None, psg_model
 
 
 def convert(source, out, *, psg_gain=None, scc_gain=.125, title=None, psg_model='fm', pitch_policy=None,
-            dump_passes=True, notation='structured', loops=True, normalize_lengths=None, projection_mode=None, normalization_ms=8, song_loop=True):
+            dump_passes=True, notation='structured', loops=True, normalize_lengths=None, projection_mode=None, normalization_ms=8, song_loop=True, force=False):
     """Keep native evidence on request; default standalone audit keeps all passes."""
     from conversion_config import normalization_enabled
     normalization_enabled(normalize_lengths, notation=notation)
@@ -266,19 +269,20 @@ def convert(source, out, *, psg_gain=None, scc_gain=.125, title=None, psg_model=
         raise ValueError('Projection mode and notation are incompatible')
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    for suffix in ('.mdx.mml', '.mdx.normalization.json'):
+    for suffix in ('.mdx.mml', '.mdx.normalization.json',
+                   '.psg_force.skipped_registers.csv', '.psg_force.skipped_registers.json'):
         artifact = out / (Path(source).stem + suffix)
         if artifact.resolve() == Path(source).resolve():
             raise ValueError('Conversion output must not replace its source input')
         artifact.unlink(missing_ok=True)
-    if dump_passes:
+    if dump_passes or force:
         return _convert(source, out, psg_gain=psg_gain, scc_gain=scc_gain, title=title,
                         psg_model=psg_model, pitch_policy=pitch_policy, notation=notation, loops=loops,
-                        normalize_lengths=normalize_lengths, projection_mode=projection_mode, normalization_ms=normalization_ms, song_loop=song_loop)
+                        normalize_lengths=normalize_lengths, projection_mode=projection_mode, normalization_ms=normalization_ms, song_loop=song_loop, force=force)
     with tempfile.TemporaryDirectory(prefix='psg-scc-opm-') as temp:
         mml, plan = _convert(source, temp, psg_gain=psg_gain, scc_gain=scc_gain, title=title,
                         psg_model=psg_model, pitch_policy=pitch_policy, notation=notation, loops=loops,
-                        normalize_lengths=normalize_lengths, projection_mode=projection_mode, normalization_ms=normalization_ms, song_loop=song_loop)
+                        normalize_lengths=normalize_lengths, projection_mode=projection_mode, normalization_ms=normalization_ms, song_loop=song_loop, force=force)
         result = out / mml.name
         shutil.copyfile(mml, result)
         normalization = mml.with_name(Path(source).stem + '.mdx.normalization.json')
