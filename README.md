@@ -20,6 +20,15 @@ python vgm2mml.py input.vgm --outdir OUTPUT
 
 VGM／VGZの実際のコマンドから使用音源を判定します。MUCOM88出力では、対応範囲内のOPNAのFM・SSG・リズム・ADPCM-Bを処理します。未対応の音源・組み合わせ・ストリームは診断情報として報告します。
 
+## おまけ機能
+
+既定のMUCOM88出力とは別に、MMLの生成に関しては以下オプションでMDX　MML/PCM IR, 及び MGS MMLを出力可能です。
+
+```bash
+python vgm2mml.py input.vgm --target mdx --outdir OUTPUT
+python vgm2mml.py input.vgm --target mgs --outdir OUTPUT
+```
+
 ### 入力と出力
 
 | 入力 | 主な出力 |
