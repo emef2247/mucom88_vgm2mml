@@ -52,7 +52,7 @@ python scripts/export_mucom.py INPUT_DIRECTORY --outdir outputs/mucom88
 
 `tracks/` 以下に曲ごとのMUC・MUB・必要なバンク、`_diagnostics/` 以下に中間CSV／JSON・コンパイラログ・レポートを保存します。各曲の結果は `results.csv` で確認できます。MUCだけを一括生成する場合は `--muc-only` を指定してください。
 
-MUB生成にはMUCOM88 Windows 260407に同梱された `mucomDotNETConsole.exe` を使用します。PCM保持中制御の拡張命令が必要なMUCには、別配置した対応版mucomDotNETを自動選択します。外部工具はリポジトリに同梱しません。配置・導入方法は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。別のコンパイラ配置は `--mucom88 <実行ファイル>` で指定できます。
+MUB生成にはMUCOM88 Windows 260407に同梱された `mucomDotNETConsole.exe` を使用します。PCM保持中制御の拡張命令が必要なMUCには、別配置した対応版mucomDotNETを自動選択します。外部ツールはリポジトリに同梱しません。配置・導入方法は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。別のコンパイラ配置は `--mucom88 <実行ファイル>` で指定できます。
 
 生成したMUCや関連ファイルを手作業で編集した場合、一括出力ツールは上書きを拒否します。元の入力素材とは別の出力先を使用してください。
 
@@ -88,7 +88,7 @@ FMの発音や内部制御を比較する手順は[docs/mucom_musical_projection
 
 再生中の音量・パン・Delta-N変更に対応しています。再生中のPCMを維持したまま制御を更新し、Delta-Nによる停止・再開も扱います。このMUCはmucomDotNET拡張を利用し、本家MUCOM88／MUCOMMSXとの互換性は保証しません。
 
-対応版工具は次のコマンドで `.tools/` 以下へ導入できます。Windowsの.NET 6ランタイムが必要です。
+対応版ツールは次のコマンドで `.tools/` 以下へ導入できます。Windowsの.NET 6ランタイムが必要です。
 
 ```bash
 python scripts/setup_mucom_pcm_tools.py
@@ -143,7 +143,7 @@ python scripts/export_mucom.py --help
 - `conversion_failed`：解析・MUC投影・時間割当の未対応条件や、変換のtimeoutです。音源間の周波数変換失敗だけを意味しません。
 - `compilation_failed`：MUC生成後にコンパイラが失敗しています。演奏データの容量制限も含まれます。MUCの文字数とMUBの演奏データ容量は別です。
 - CH3特殊モード／CSM：現在のMUC投影では未対応です。
-- 外部工具が見つからない場合：工具の配置または `--mucom88` 指定を確認してください。PCM保持中制御には対応版工具が必要です。
+- 外部ツールが見つからない場合：ツールの配置または `--mucom88` 指定を確認してください。PCM保持中制御には対応版ツールが必要です。
 
 曲ループ接続のエラーには、`--no-song-loop` を追加して有限1周の出力を試してください。長い曲のtimeoutには、各段階の上限を `--timeout 600` などで延長できます。
 
