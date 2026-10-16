@@ -1,6 +1,6 @@
 > この文書は継承した **MDXターゲット** の説明です。
 > 本リポジトリの通常CLIでは `--target mdx --force` と指定します。
-> 既定のMUCターゲットと `scripts/export_mucom.py` の `--force` は未実装です。
+> 既定MUCの `--force` は、[MUC固有の適用範囲](mucom_force.md)を参照してください。
 > MDXで未対応のSSG機能の消音やPDX容量規則を、MUCには適用しません。
 
 # 試聴用の部分変換（--force）

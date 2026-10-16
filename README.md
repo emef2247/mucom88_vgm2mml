@@ -35,6 +35,8 @@ python vgm2mml.py input.vgm --target mgs --outdir OUTPUT
 
 | 入力 | 主な出力 |
 |------|------|
+| PSG（AY8910/8912/8913・YM2149） | 元のPSG Segmentと、OPNA SSGへの直接投影によるMUC |
+| MSM6258 | 元のPCM IRと、ADPCM-Bへの再符号化によるMUC・必要なPCMバンク |
 | OPNA（YM2608）の通常FM | 状態・Segmentと、FMパートのMUC・音色DAT |
 | OPNAのSSG | 状態・Segmentと、SSGパートのMUC |
 | OPNAのリズム | 発音・停止・制御情報と、リズムパートのMUC |
@@ -104,6 +106,14 @@ python scripts/export_mucom.py tests/fixtures/public/opna/pcm_controls \
 
 MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向けPCM投影データを生成できます。`--pcm-policy best-effort` を指定し、OPMなど他音源を明示的に除外してPCMだけを取り出す場合は `--pcm-only` を併用してください。実行例・対応範囲・容量制限は[PCM相互変換](docs/pcm_interoperability.md)を参照してください。
 
+PSGはOPMを経由せず、OPNAのSSGへ直接変換します。対応するノイズ・HWエンベロープも出力します。[PSG→SSGの対応範囲](docs/psg_to_ssg.md)を参照してください。
+
+```bash
+python scripts/export_mucom.py PSG_INPUT_DIRECTORY --outdir outputs/mucom88/psg --force
+python scripts/export_mucom.py MSM6258_INPUT_DIRECTORY --outdir outputs/mucom88/msm6258 \
+  --pcm-policy best-effort --force
+```
+
 ## 主なオプション
 
 通常のMUCOM88変換の主なオプションは次のとおりです。
@@ -115,6 +125,7 @@ MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向�
 | `--normalize-lengths` / `--no-normalize-lengths` | 出力用正規化の有効／無効（既定は有効） |
 | `--normalization-ms MS` | 短い発音の省略閾値と出力時刻の最大移動量（既定8ms、適用条件あり） |
 | `--timing-bound-ms MS` | 正規化を無効にした基準経路の時刻移動上限（既定8ms） |
+| `--force` | 対応範囲内の未対応機能・容量超過PCMを省略し続行。[適用範囲と一覧](docs/mucom_force.md) |
 | `--no-loops` | 有限反復の生成を無効化 |
 | `--no-song-loop` | VGMヘッダーの曲ループを出力せず、最初の1周で終了 |
 | `--dump-passes` | 中間結果保存の明示指定。MUCOM88経路では指定の有無によらず保存 |
@@ -142,7 +153,7 @@ python scripts/export_mucom.py --help
 
 ## トラブルシューティング
 
-継承MDX経路では、未対応機能やPDX容量超過で停止した場合に `--force` で部分出力を試せます。元のSegment・PCM IRを保持し、省略内容を一覧とCSV／JSON・TXTへ記録します。指定例は `python vgm2mml.py input.vgm --target mdx --outdir outputs/mdx --pcm-policy best-effort --force` です。既定のMUC経路と `scripts/export_mucom.py` には、今回 `--force` を追加していません。詳細は[MDXの部分変換](docs/opna_force.md)を参照してください。
+未対応機能やPCM容量超過で停止した場合は、`--force`で扱える部分の出力を試せます。省略したパート・レジスタ・理由・容量値は、各曲の処理後の一覧とCSV／JSON・TXTで確認できます。元のSegment・PCM IRは保持します。入力異常やコンパイラ制限などは停止します。[MUCの部分変換](docs/mucom_force.md)を参照してください。継承の`--target mdx`には[別のforce方針](docs/opna_force.md)があります。
 
 エラーの詳細は、出力先の `results.csv` と各runの `report.txt`、変換・コンパイルログで確認できます。
 

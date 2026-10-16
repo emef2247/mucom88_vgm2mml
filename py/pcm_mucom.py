@@ -116,18 +116,50 @@ def _chunk_boundaries(start, end, loop_start):
         start = stop
 
 
-def _msm_source(raw, outdir, stem):
+def _msm_source(raw, outdir, stem, *, force=False, loop_count=1):
     from msm6258 import analyze
     from opna_adpcm import _msm_next
-    native = analyze(raw)
+    native = analyze(raw,loop_count=loop_count)
     native.dump(outdir, stem)
-    if native.issues and native.playbacks:
-        raise ProjectionError('Unresolved MSM6258 source controls: '+', '.join(sorted({i.code for i in native.issues})))
-    if native.options & 8:
+    unsupported = {'unsupported_register', 'unsupported_recording',
+        'reserved_pan_bits', 'reserved_divider_bits', 'unsupported_clock_flags',
+        'reserved_options', 'unsupported_chip_instance', 'unsupported_adpcm3',
+        'rate_change_during_playback'}
+    issue_codes = {i.code for i in native.issues}
+    if native.issues and native.playbacks and not (force and issue_codes <= unsupported):
+        raise ProjectionError('Unresolved MSM6258 source controls: '+', '.join(sorted(issue_codes)))
+    if force and issue_codes - unsupported:
+        raise ProjectionError('Unresolved MSM6258 source controls: '+', '.join(sorted(issue_codes)))
+    if native.options & 8 and not force:
         raise ProjectionError('MSM6258 12-bit output is not supported by this 10-bit decoder model')
     samples = {sample.sample_id: sample for sample in native.samples}
+    # Validate decoder evidence even when a separate unsupported mode is omitted.
+    if force:
+        for playback in native.playbacks:
+            blockers = set(playback.issues) - unsupported
+            if (blockers or not playback.decoder_reset_known
+                    or not playback.delivery_cadence_compatible
+                    or playback.sample_id not in samples or playback.rate_hz <= 0):
+                raise ProjectionError(f'MSM6258 playback {playback.playback_id} has unresolved source evidence: '
+                    + ', '.join(sorted(blockers or {'unknown reset, cadence, sample or clock'})))
+    omissions = []
+    def omit(playback, reason):
+        return dict(source_kind='msm6258', action='omit_pcm_playback' if playback else 'omit_pcm_part',
+            reason=reason, source_gate_ids=[playback.playback_id] if playback else [p.playback_id for p in native.playbacks],
+            source_event_ids=[playback.first_source_event_id, playback.last_source_event_id] if playback
+                else [i.source_event_id for i in native.issues if i.source_event_id is not None],
+            source_start_vgmticks=playback.start_vgmticks if playback else 0,
+            source_end_vgmticks=playback.end_vgmticks if playback else native.source_end_vgmticks)
+    whole_part = force and (bool(issue_codes) or bool(native.options & 8))
+    if whole_part:
+        omissions.append(omit(None, ','.join(sorted(issue_codes | ({'unsupported_12bit_output'} if native.options & 8 else set())))))
     intervals, decoded_frames = [], 0
     for playback in native.playbacks:
+        if whole_part:
+            continue
+        if force and set(playback.issues) & unsupported:
+            omissions.append(omit(playback, ','.join(sorted(set(playback.issues) & unsupported))))
+            continue
         if (playback.chip_instance or not playback.independently_playable
                 or not playback.delivery_cadence_compatible or not playback.decoder_reset_known
                 or playback.issues or playback.sample_id not in samples):
@@ -136,6 +168,9 @@ def _msm_source(raw, outdir, stem):
         held_pan = [c for c in native.controls if c.register == 2
             and playback.start_vgmticks <= c.vgmticks < playback.end_vgmticks
             and c.pan != playback.pan]
+        if held_pan and force:
+            omissions.append(omit(playback, 'held_pan_change'))
+            continue
         if held_pan:
             raise ProjectionError('MSM6258 held-pan changes require an explicit live-pan projection')
         source = samples[playback.sample_id]
@@ -159,20 +194,21 @@ def _msm_source(raw, outdir, stem):
                 exhaustion_clipped=exhaustion<playback.end_vgmticks))
     return native.source_end_vgmticks, intervals, dict(
         source_kind='msm6258', source_gate_count=len(native.playbacks),
+        force_omissions=omissions,
         assumptions=['Nominal continuous low-nibble-first consumption from a known -2/0 reset; supplied bytes are not observed consumption'],
         losses=['MSM6258 decoded values are requantized to Yamaha ADPCM-B',
                 'Available encoded sample exhaustion clips the projected sounding interval'],
         source_controls_retained=True)
 
 
-def _sega_source(raw, outdir, stem, loop_start):
+def _sega_source(raw, outdir, stem, loop_start, *, loop_count=1):
     from vgm_io import read_vgm_header
     from vgm_timing import command_times
     from segapcm import SegaPcmTrace
     from segapcm_playback import render
     trace = SegaPcmTrace(read_vgm_header(raw))
     end = 0
-    for event_id,event in enumerate(command_times(raw)):
+    for event_id,event in enumerate(command_times(raw,loop_count=loop_count)):
         cmd, pos = event.command, event.address+1
         end = event.vgmticks+event.wait_samples
         if cmd == 0xc0:
@@ -206,7 +242,7 @@ def _sega_source(raw, outdir, stem, loop_start):
               'Fractional native gate boundaries are rounded outward',
               'Native mixed waveform is requantized to Yamaha ADPCM-B']
     if loop_start is not None:
-        losses.append('One recorded source traversal is frozen; later loop decoder phase may differ')
+        losses.append('The rendered loop body is frozen for target replay; later source loop decoder phase may differ')
     if native.missing_rom_reads:
         losses.append(f'Missing ROM was modeled as neutral PCM: {native.missing_rom_reads} reads')
     return end,intervals,dict(source_kind='segapcm',source_gate_count=len(native.gates),
@@ -214,18 +250,22 @@ def _sega_source(raw, outdir, stem, loop_start):
         missing_rom_reads=native.missing_rom_reads)
 
 
-def _project(end, intervals, source_report, loop_start):
+def _project(end, intervals, source_report, loop_start, *, force=False):
     if loop_start is not None and not 0 <= loop_start < end:
         raise ProjectionError('PCM song-loop boundary is outside the source timeline')
     header,payload = bytearray(1024),bytearray()
     identities, bindings, items, mapping, segments = {},[],[],[],[]
     octave,note,detune = _pcm_spelling(SimpleNamespace(rate_num=TARGET_RATE.numerator,rate_den=TARGET_RATE.denominator))
+    omissions = list(source_report.get('force_omissions', []))
+    candidate_index = 0
     previous_end = 0
     for interval in intervals:
         if interval['start'] < previous_end:
             raise ProjectionError('Overlapping MSM6258 intervals require an explicit mix model')
         previous_end = interval['end']
         for start,stop in _chunk_boundaries(interval['start'],interval['end'],loop_start):
+            chunk_index = candidate_index
+            candidate_index += 1
             count = max(1,round(Fraction(stop-start,44100)*TARGET_RATE))
             pcm,clipped = [],0
             initial = float(Fraction(start-interval['origin'],44100)*interval['rate'])
@@ -241,7 +281,7 @@ def _project(end, intervals, source_report, loop_start):
             slot = identities.get(key)
             if slot is None:
                 context = dict(source_kind=source_report['source_kind'],
-                    target_chunk_index=len(mapping), attempted_slot=len(bindings)+1,
+                    target_chunk_index=chunk_index, attempted_slot=len(bindings)+1,
                     source_start_vgmticks=start, source_end_vgmticks=stop,
                     source_start_seconds=start/44100, source_end_seconds=stop/44100,
                     source_gate_ids=list(interval['source_ids']),
@@ -262,15 +302,25 @@ def _project(end, intervals, source_report, loop_start):
                         '(bank payload excludes the 1024-byte header)')
                     raise ProjectionError(description, detail)
 
-                if len(bindings) >= 32:
-                    reject_capacity('sample_slot_count',len(bindings)+1,32,'slots')
-                if len(encoded)-4 > 65535:
-                    reject_capacity('sample_length_field',len(encoded)-4,65535,'bytes')
+                # Alignment is an encoder invariant, not a capacity loss policy.
                 if len(encoded)%4:
                     reject_capacity('sample_alignment',len(encoded)%4,0,'remainder bytes',
                                     'required remainder modulo 4')
-                if len(payload)+len(encoded)>MAX_BANK_BYTES:
-                    reject_capacity('bank_payload_bytes',len(payload)+len(encoded),MAX_BANK_BYTES,'bytes')
+                failure = None
+                if len(bindings) >= 32:
+                    failure = ('sample_slot_count', len(bindings)+1, 32, 'slots')
+                elif len(encoded)-4 > 65535:
+                    failure = ('sample_length_field',len(encoded)-4,65535,'bytes')
+                elif len(payload)+len(encoded)>MAX_BANK_BYTES:
+                    failure = ('bank_payload_bytes',len(payload)+len(encoded),MAX_BANK_BYTES,'bytes')
+                if failure:
+                    code, actual, limit, unit = failure
+                    if not force:
+                        reject_capacity(code, actual, limit, unit)
+                    omissions.append(dict((k,v) for k,v in context.items() if k != 'completed_chunks') |
+                        dict(action='omit_pcm_chunk',reason=code,code=code,actual=actual,
+                             limit=limit,unit=unit,target_sha256=digest))
+                    continue
                 slot = len(bindings)+1
                 identities[key] = slot
                 offset = (slot-1)*32
@@ -296,7 +346,10 @@ def _project(end, intervals, source_report, loop_start):
         target_rate_num=TARGET_RATE.numerator,target_rate_den=TARGET_RATE.denominator,
         target_level=249,target_level_gain=249/255,
         target_reset='Independent target predictor0/step127; no native reset claimed',
-        source_ir_unchanged=True,normalization_omission_safe=False,mapping=mapping)
+        source_ir_unchanged=True,normalization_omission_safe=False,mapping=mapping,
+        force_enabled=force,force_omissions=omissions,source_end_vgmticks=end,
+        source_loop_vgmticks=loop_start,target_distinct_samples=len(bindings),
+        target_bank_payload_bytes=len(payload),target_retained_chunks=len(mapping))
     if loop_start is not None:
         report['losses'].append('Target song loop restarts independently encoded chunks; native decoder phase is not reconstructed across infinite traversals')
     report['losses'] = [*report['losses'],'Linear resampling without antialias filtering',
@@ -307,7 +360,7 @@ def _project(end, intervals, source_report, loop_start):
         NormalizationView(end,tuple(segments)),report)
 
 
-def project_input(raw, *, kind, outdir, stem, loop_start=None):
+def project_input(raw, *, kind, outdir, stem, loop_start=None, force=False, loop_count=1):
     """Preserve native passes, then produce derived target PCM bank and K units."""
     root = Path(outdir)
     root.mkdir(parents=True,exist_ok=True)
@@ -325,24 +378,35 @@ def project_input(raw, *, kind, outdir, stem, loop_start=None):
     save_capacity()
     try:
         if kind == 'msm6258':
-            end,intervals,report = _msm_source(raw,outdir,stem)
+            end,intervals,report = _msm_source(raw,outdir,stem,force=force,loop_count=loop_count)
         elif kind == 'segapcm':
-            end,intervals,report = _sega_source(raw,outdir,stem,loop_start)
+            end,intervals,report = _sega_source(raw,outdir,stem,loop_start,loop_count=loop_count)
         else:
             raise ProjectionError(f'Unsupported PCM interoperability source {kind}')
+        report['source_traversals_requested']=loop_count
         capacity.update(stage='target_encoding_and_bank_binding')
         save_capacity()
-        projection = _project(end,intervals,report,loop_start)
+        projection = _project(end,intervals,report,loop_start,force=force)
     except ProjectionError as error:
         capacity.update(status='blocked', detail=str(error), failure=error.diagnostics)
         save_capacity()
         raise ProjectionError(f'{error}; PCM capacity report: {capacity_path}',capacity) from error
-    capacity.update(status='accepted', distinct_samples=len(projection.bindings),
+    capacity.update(status='accepted_with_omissions' if projection.report['force_omissions'] else 'accepted',
+        force_enabled=force,omissions=projection.report['force_omissions'],
+        source_end_vgmticks=end,source_loop_vgmticks=loop_start,
+        omitted_chunk_count=sum(r['action']=='omit_pcm_chunk' for r in projection.report['force_omissions']),
+        distinct_samples=len(projection.bindings),
         bank_payload_bytes=max(0,len(projection.bank)-1024),
         largest_sample_encoded_bytes=max((b['encoded_length'] for b in projection.bindings),default=0))
     save_capacity()
     path = root / f'{stem}.pcm_mucom_projection.json'
     path.write_text(json.dumps(projection.report,indent=2)+'\n',encoding='utf-8')
+    omissions = projection.report['force_omissions']
+    with (root/f'{stem}.pcm_mucom_omissions.csv').open('w',newline='',encoding='utf-8') as stream:
+        fields = tuple(dict.fromkeys(k for row in omissions for k in row)) or ('action','reason')
+        writer = csv.DictWriter(stream,fieldnames=fields)
+        writer.writeheader()
+        writer.writerows({k:json.dumps(v) if isinstance(v,(list,dict)) else v for k,v in row.items()} for row in omissions)
     mapping = projection.report['mapping']
     with (root/f'{stem}.pcm_mucom_mapping.csv').open('w',newline='',encoding='utf-8') as stream:
         fields = tuple(mapping[0]) if mapping else ('segment_id',)

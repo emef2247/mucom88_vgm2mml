@@ -27,7 +27,7 @@
 |---|---|---|
 | 通常CLI | `--target mdx` を明示 | 既定の `--target mucom` |
 | バッチ | `scripts/export_mdx.py` | `scripts/export_mucom.py` |
-| 部分変換 | `--force` 対応 | 今回は追加していない |
+| 部分変換 | 継承MDXの`--force` | 同期後に[MUC固有のforce](mucom_force.md)を追加 |
 | PCMバンク | PDXの96枠・検証済みサンプルサイズ | MUCOMの32枠・256 KiBペイロード・4バイト整列 |
 | SSGノイズ・HWエンベロープ | OPMで未対応の区間をforce時に消音 | 対応済みのネイティブSSG投影を維持 |
 
@@ -42,15 +42,17 @@ MUC向けのforce、チャンネル割当・省略、バンク容量回避は、
 
 ## 次のOPNAターゲット拡張
 
-今回の同期では次の経路を新設していない。
+同期時点では次の経路を新設していない。その後の現状は次のとおり。
 
 - OPM + SegaPCM → OPNA/MUC
 - OPM → OPNA/MUC
 - OPM + MSM6258 → OPNA/MUC
-- PSG → OPNAのSSG/MUC
+- PSG → OPNAのSSG/MUC: [直接投影を実装](psg_to_ssg.md)
 - SCC → OPNA/MUC
 
 OPM混在入力の現在のMUC経路は、明示的な `--pcm-only` によるPCM抽出のまま。
 PSG → OPNAはPSG → OPM投影の移植ではなく、ネイティブPSG情報をSSGへ
 写像する方針。OPMの最大8chに対するOPNAのFM6ch割当と、明示オプションに
 よる余剰ch省略は、別のターゲット投影として扱う。
+
+MSM6258単独およびPSGとの併用は、既存のADPCM-B変換へ接続済み。OPM混在のFM投影は未実装であり、force時の除外は対応とは区別する。

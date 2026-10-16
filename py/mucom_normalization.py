@@ -41,8 +41,7 @@ def apply_fm_omissions(analysis, source_event_ids):
     for event in analysis.events:
         chip = chips.setdefault(event.chip_instance, OpnaRegisterState())
         identity = (event.chip_instance, event.source_event_id)
-        original = event.original_event_id if event.original_event_id is not None else event.source_event_id
-        drop = event.register == 0x28 and original in omitted
+        drop = event.register == 0x28 and event.source_event_id in omitted
         if last_write.get(event.chip_instance) != identity:
             before = snapshots.get(('current', event.chip_instance))
             if before is None:
@@ -97,21 +96,26 @@ def omit_short_fm(analysis, bound_samples, loop_start):
             if loop_start is not None and on.vgmticks < loop_start < off.vgmticks:
                 continue
             losses.append(dict(part='ABCHIJ'[ch], channel=ch,
-                on_event_id=on.original_event_id if on.original_event_id is not None else on.source_event_id,
-                off_event_id=off.original_event_id if off.original_event_id is not None else off.source_event_id,
+                on_event_id=on.source_event_id, off_event_id=off.source_event_id,
+                original_on_event_id=on.original_event_id, original_off_event_id=off.original_event_id,
                 source_start=on.vgmticks, source_end=off.vgmticks, duration_samples=duration,
                 reason='closed full-mask gate at or below original-time omission bound'))
     ids = {row[key] for row in losses for key in ('on_event_id', 'off_event_id')}
     return apply_fm_omissions(analysis, ids), losses
 
 
-def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, milliseconds, *, seams=()):
+def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, milliseconds, *, seams=(), auxiliary_controls=()):
     """Return a candidate policy/map; caller atomically falls back if infeasible.
 
     Auxiliary eligibility/bank packing must have succeeded before this call.
     SSG and rhythm attacks are retained; independent, observed-reset PCM gates
     may be omitted without modifying their source IR or their packed bank.
     """
+    auxiliary_controls = tuple(auxiliary_controls)
+    for control in auxiliary_controls:
+        tick = control['vgmticks']
+        if type(tick) is not int or not 0 <= tick <= end:
+            raise ValueError('Auxiliary source control is outside the original timeline')
     bound = normalization_samples(milliseconds)
     if analysis.source_end_vgmticks != end or pcm_analysis.source_end_vgmticks != end:
         raise ValueError('FM and PCM normalization require the same original source end')
@@ -143,6 +147,9 @@ def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, millisecon
     times.update(e.vgmticks for e in analysis.events)
     times.update(e.vgmticks for e in analysis.unmodeled_writes)
     times.update(c.vgmticks for c in pcm_analysis.controls)
+    # Merged target slices may hide redundant/inactive native PSG writes.
+    # Loop proof must consume the same accepted map for every observed write.
+    times.update(c['vgmticks'] for c in auxiliary_controls)
     protected = [dict(start_vgmticks=0, end_vgmticks=end, kind='song')]
     if loop_start is not None:
         times.add(loop_start)
@@ -182,6 +189,14 @@ def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, millisecon
                 protected.append(dict(start_vgmticks=previous,end_vgmticks=event.vgmticks,kind='auxiliary_trigger'))
             effects[identity] = event.vgmticks
             times.add(event.vgmticks)
+    previous_shape = None
+    for control in auxiliary_controls:
+        if control.get('chip_instance', 0) == 0 and control['register'] == 13:
+            tick = control['vgmticks']
+            if previous_shape is not None and previous_shape < tick:
+                protected.append(dict(start_vgmticks=previous_shape, end_vgmticks=tick,
+                                      kind='psg_envelope_trigger'))
+            previous_shape = tick
     for seam in seams:
         if seam['mode'] == 'head_keyoff':times.add(seam['head_key_sample'])
     times = sorted(times)
@@ -233,11 +248,16 @@ def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, millisecon
         proposed_omitted_fm_gates=losses, proposed_omitted_pcm_gates=omitted_pcm,
         fitted_clock=asdict(fitted) if fitted else None,nominated_timer_b=nominated,
         protected_intervals=protected,rejected_timer_b=rejected,
+        auxiliary_control_count=len(auxiliary_controls),
         auxiliary_policy='SSG/rhythm retained; PCM eligibility and bytes validated before omission')
     if selected is None:
         report.update(reason='No feasible normalized native clock; restore unmodified baseline atomically',known_loss=False)
         return analysis, tracks, None, None, report
     clock,timer,period,error,nearest = selected
+    report['auxiliary_control_timing'] = [dict(control,
+        target_clock=clock[control['vgmticks']],
+        error_samples=float(clock[control['vgmticks']]*period-control['vgmticks']))
+        for control in auxiliary_controls]
     report.update(reason='original-time whole-gate omission and bounded ordered native clock',
         clock_selection='musical_fit' if timer==nominated else 'bounded_native_timer',
         adjusted_nearest_boundaries=sum(clock[t]!=n for t,n in zip(times,nearest)),

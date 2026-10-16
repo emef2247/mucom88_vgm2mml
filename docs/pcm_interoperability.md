@@ -94,5 +94,13 @@ exact failed value; a generic historical error cannot supply the missing sizes.
 
 MDX側の共有PCM波形処理・部分変換診断を同期しているが、この文書の
 MUC向け `pcm_mucom.py` とその32枠・256 KiB・整列制約は別である。
-今回の同期でMUCの `--force` やOPMのFM投影は追加していない。
+同期後に[MUC固有のforce](mucom_force.md)を追加した。OPMのFM投影は未実装。
 [同期範囲と次の経路](x68k_code_sync.md)を参照。
+
+## MUC forceとPSG併用
+
+`--force`を直接CLI／バッチに追加できる。PSGとの併用はSSGとKを同じ時刻に
+投影し、MSM6258単独の入力には`--pcm-only`は不要。OPM等の未対応エンジンが
+混在する場合、通常の明示抽出に加え、forceによる除外と一覧表示を選べる。
+容量省略は収まらない新規サンプルだけを対象とし、採用済み音色の再利用を残す。
+元のPCM IR、終端・ループ時刻は保持する。詳細は[MUC force](mucom_force.md)。

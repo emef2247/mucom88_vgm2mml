@@ -94,6 +94,46 @@ class PcmMucomTest(unittest.TestCase):
         self.assertEqual(caught.exception.diagnostics['actual'],65536)
         self.assertEqual(caught.exception.diagnostics['limit'],65535)
 
+    def test_force_capacity_skips_new_chunk_but_reuses_bound_audio(self):
+        from unittest.mock import patch
+        def row(start, value):
+            return dict(start=start,end=start+100,samples=[value]*100,rate=TARGET_RATE,
+                origin=start,pan=3,source_ids=(start,),events=(start,),exhaustion_clipped=False)
+        # An encoded chunk is 20 bytes here. The second distinct candidate fails,
+        # while a later reuse of the first sample requires no new capacity.
+        with patch('pcm_mucom.MAX_BANK_BYTES',20):
+            result=_project(500,[row(0,100),row(200,-100),row(400,100)],
+                dict(source_kind='msm6258',losses=[]),300,force=True)
+        self.assertEqual(len(result.bindings),1)
+        self.assertEqual([i[:2] for i in result.items],[(0,100),(400,500)])
+        self.assertEqual(result.normalization_view.source_end_vgmticks,500)
+        self.assertEqual(result.report['source_loop_vgmticks'],300)
+        omission=result.report['force_omissions'][0]
+        self.assertEqual(omission['source_gate_ids'],[200])
+        self.assertEqual((omission['actual'],omission['limit']),(40,20))
+        self.assertEqual(omission['reason'],'bank_payload_bytes')
+
+    def test_force_msm_unsupported_hw_retains_source_and_records_omission(self):
+        from test_msm6258 import source,run,write
+        raw=source(run()+write(7,1))
+        with tempfile.TemporaryDirectory() as directory:
+            result=project_input(raw,kind='msm6258',outdir=directory,stem='force',force=True)
+            self.assertEqual(result.items,())
+            self.assertEqual(result.bank,b'')
+            self.assertTrue(result.report['source_ir_unchanged'])
+            self.assertEqual(result.report['force_omissions'][0]['reason'],'unsupported_register')
+            self.assertTrue((Path(directory)/'force.pcm_source.json').exists())
+            capacity=json.loads((Path(directory)/'force.pcm_mucom_capacity.json').read_text())
+            self.assertEqual(capacity['status'],'accepted_with_omissions')
+            self.assertTrue((Path(directory)/'force.pcm_mucom_omissions.csv').exists())
+
+    def test_force_does_not_hide_unknown_decoder_evidence(self):
+        from test_msm6258 import source,write,wait
+        raw=source(write(0,2)+write(1,0x12)+wait(1000)+write(1,0x34)+wait(6)+write(0,1))
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ProjectionError,'unresolved source evidence'):
+                project_input(raw,kind='msm6258',outdir=directory,stem='bad',force=True)
+
     def test_overlap_rejected(self):
         row=dict(start=0,end=20,samples=[1]*20,rate=TARGET_RATE,
                  origin=0,pan=3,source_ids=(0,),events=(0,),exhaustion_clipped=False)

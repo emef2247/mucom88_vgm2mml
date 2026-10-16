@@ -5,6 +5,8 @@ and a note, but no duration; musical gate construction belongs to the caller.
 The native bank contains original ADPCM-B bytes, without an MSM6258 projection.
 """
 import struct
+from dataclasses import replace
+from bisect import bisect_left, bisect_right
 from fractions import Fraction
 
 TARGET_CLOCK_HZ = 7987200
@@ -32,27 +34,41 @@ def _period(value, source_clock_hz, maximum, label):
     return projected
 
 
-def project_ssg(analysis, events, raw, source_clock_hz=TARGET_CLOCK_HZ, *, global_controls=None):
+def project_ssg(analysis, events, raw, source_clock_hz=TARGET_CLOCK_HZ, *, global_controls=None,
+                source_command=0x56, effective_source_clock_hz=None, force=False, omissions=None,
+                musical_notes=None):
     """Return DEF control intervals; retain hardware-envelope trigger ordering."""
     _clock(source_clock_hz)
+    if effective_source_clock_hz is not None:
+        # Only a projection ratio; preserve the original AY source clock.
+        source_clock_hz=4*_clock(effective_source_clock_hz)
     shapes = {}
     for event in events:
-        if event.command == 0x56 and raw[event.address + 1] == 13:
+        if event.command == source_command and raw[event.address + 1] == 13:
             shapes.setdefault(event.vgmticks, []).append(raw[event.address + 2] & 15)
     hardware = sorted((s.vgmticks, s.vgmticks_end, ch)
                       for ch, channel in analysis.segments.items() for s in channel
                       if s.scale != 'r' and s.envelope_enabled and s.vgmticks_end > s.vgmticks)
-    hardware_ends = {}
-    for start, stop, ch in hardware:
-        if any(other != ch and end > start for other, end in hardware_ends.items()):
-            raise ProjectionError('Overlapping SSG hardware-envelope channels share a global trigger and are unsupported')
-        hardware_ends[ch] = stop
+    conflicts=[];active=[]
+    for start,stop,ch in hardware:
+        active=[row for row in active if row[1]>start]
+        for other_start,other_stop,other in active:
+            if other!=ch:conflicts.append((start,min(stop,other_stop)))
+        active.append((start,stop,ch))
+    merged=[]
+    for start,stop in sorted(conflicts):
+        if merged and start<=merged[-1][1]:merged[-1]=(merged[-1][0],max(stop,merged[-1][1]))
+        else:merged.append((start,stop))
+    conflicts=merged
+    conflict_starts=[a for a,b in conflicts];conflict_ends=[b for a,b in conflicts]
+    if conflicts and not force:
+        raise ProjectionError('Overlapping SSG hardware-envelope channels share a global trigger and are unsupported')
     # The installed legacy S command addresses only shape8..15 and retriggers
     # twice at a note attack. Global corrections execute on G after DEF; generic
     # y commands on SSG parts compile but are not consumed by the legacy driver.
     corrections = global_controls if global_controls is not None else []
     for event in events:
-        if event.command == 0x56 and raw[event.address + 1] == 13:
+        if event.command == source_command and raw[event.address + 1] == 13:
             corrections.append((event.vgmticks, 13, raw[event.address + 2] & 15,
                                 event.source_event_id))
     # Native FRQ_DF clears beforeCode to0. A tied o1c also has note code0,
@@ -63,14 +79,45 @@ def project_ssg(analysis, events, raw, source_clock_hz=TARGET_CLOCK_HZ, *, globa
     tracks = {}
     for ch, segments in analysis.segments.items():
         gate, previous_end, previous_hardware = 0, None, False
-        for segment in segments:
+        previous_software_note = None
+        note_membership = {sid: index for index, note in enumerate((musical_notes or {}).get(ch, ()))
+                           if not note.rest for sid in note.segment_indices}
+        projected_segments=[]
+        for source_index, source_segment in enumerate(segments):
+            boundaries={source_segment.vgmticks,source_segment.vgmticks_end}
+            if force and source_segment.envelope_enabled:
+                left=bisect_right(conflict_ends,source_segment.vgmticks)
+                right=bisect_left(conflict_starts,source_segment.vgmticks_end)
+                boundaries.update(t for span in conflicts[left:right] for t in span
+                    if source_segment.vgmticks<t<source_segment.vgmticks_end)
+            points=sorted(boundaries)
+            projected_segments.extend((source_index, replace(source_segment,vgmticks=a,vgmticks_end=b))
+                for a,b in zip(points,points[1:]))
+        for source_index, segment in projected_segments:
             s = segment
             if s.scale == 'r' or s.vgmticks_end <= s.vgmticks:
                 continue
-            if s.prescale != 6:
-                raise ProjectionError('SSG prescale changes are unsupported')
-            period = _period(s.tone_period, source_clock_hz, 4095, 'SSG tone period')
-            noise = _period(s.noise_period, source_clock_hz, 31, 'SSG noise period')
+            reason=None
+            if getattr(analysis,'source_kind','opna')=='opna' and s.prescale != 6:
+                reason='SSG prescale changes are unsupported'
+            conflict=bisect_right(conflict_ends,s.vgmticks)
+            if s.envelope_enabled and conflict<len(conflicts) and conflict_starts[conflict]<s.vgmticks_end:
+                reason='Overlapping SSG hardware-envelope channels are unsupported'
+            try:
+                if reason:raise ProjectionError(reason)
+                period = _period(s.tone_period, source_clock_hz, 4095, 'SSG tone period') if s.mode&1 else 1
+                noise = _period(s.noise_period, source_clock_hz, 31, 'SSG noise period') if s.mode&2 else 0
+                envelope = _period(s.envelope_period, source_clock_hz, 65535, 'SSG envelope period') if s.envelope_enabled else 0
+            except ProjectionError as error:
+                if not force:raise
+                if omissions is not None:omissions.append(dict(part='DEF'[ch],
+                    source_chip='PSG' if source_command==0xa0 else 'OPNA',
+                    action='mute_ssg_interval',reason=str(error),
+                    source_start_vgmticks=s.vgmticks,source_end_vgmticks=s.vgmticks_end,
+                    source_event_ids=[] if s.source_event_id is None else [s.source_event_id],
+                    register=s.register if hasattr(s,'register') else None))
+                previous_end=None;previous_hardware=False;previous_software_note=None
+                continue
             octave, note, base = min(candidates, key=lambda item: abs(item[2] - period))
             controls = f'P{s.mode} '
             if s.mode&2:controls+=f'w{noise} '
@@ -90,11 +137,14 @@ def project_ssg(analysis, events, raw, source_clock_hz=TARGET_CLOCK_HZ, *, globa
                     # Explicit source retriggers belong to the global action lane;
                     # a tied SSG pitch/level slice must not produce a new attack.
                     pass
-                envelope = _period(s.envelope_period, source_clock_hz, 65535, 'SSG envelope period')
                 controls += f'm{envelope} '
             else:
-                if previous_end!=s.vgmticks or previous_hardware:
-                    if previous_hardware:gate+=1
+                software_note = note_membership.get(source_index)
+                if musical_notes is not None and software_note is None:
+                    raise ProjectionError('Audible PSG interval lacks shared musical-note membership')
+                new_note = musical_notes is not None and software_note != previous_software_note
+                if previous_end!=s.vgmticks or previous_hardware or new_note:
+                    if previous_hardware or new_note:gate+=1
                     # E reinitialization during a tied software-envelope note
                     # changes its live envelope phase and can mute held controls.
                     controls += 'E255,255,255,255,0,255 '
@@ -109,6 +159,7 @@ def project_ssg(analysis, events, raw, source_clock_hz=TARGET_CLOCK_HZ, *, globa
                                                     prefix, ('ssg', ch, gate)))
             previous_end = s.vgmticks_end
             previous_hardware = bool(s.envelope_enabled)
+            previous_software_note = None if s.envelope_enabled else note_membership.get(source_index)
     return tracks
 
 

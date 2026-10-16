@@ -611,8 +611,11 @@ uniformity. Changing the default target does not invalidate established
 musical reconstruction and structural processing.
 
 Inherited MDX partial conversion and PDX capacity selection are target policies,
-not a blanket MUC force mode. Keep supported native SSG features and MUCOM
-bank constraints intact when syncing. Current shared modules and route boundaries
+not a blanket MUC force mode. MUC force uses its own scoped omission records
+and MUCOM bank constraints; keep supported native SSG features intact.
+Direct AY projection retains PSG source types, clocks and real register order;
+shared SSG rendering must consume the source command and effective clock,
+including envelope actions and loop proof, without fabricating OPNA source. Current shared modules and route boundaries
 are recorded in [code synchronization](x68k_code_sync.md).
 
 Share infrastructure for semantic reasons; specialize source-chip meanings

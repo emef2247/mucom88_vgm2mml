@@ -66,7 +66,7 @@ def _dependencies(muc):
 
 
 def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song_loop=True,
-              normalize_lengths=True, normalization_ms=8.0, pcm_only=False, pcm_policy='strict'):
+              normalize_lengths=True, normalization_ms=8.0, pcm_only=False, pcm_policy='strict', force=False):
     normalization_samples(normalization_ms)
     source, output = Path(source).resolve(), Path(output).resolve()
     if timeout <= 0:
@@ -131,6 +131,7 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
                        '--normalization-ms', str(normalization_ms)]
             command.extend(['--pcm-policy',pcm_policy])
             if pcm_only: command.append('--pcm-only')
+            if force: command.append('--force')
             if not song_loop:
                 command.append('--no-song-loop')
             try:
@@ -194,6 +195,12 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
             try:
                 report = run_folder / 'report.txt'
                 write_export_report(report, row)
+                if force:
+                    from mucom_force import console_lines
+                    lines=console_lines(run_folder,path.stem)
+                    if lines:
+                        with report.open('a',encoding='utf-8') as stream:
+                            stream.write('\n'+'\n'.join(lines)+'\n')
                 row['report'] = report.relative_to(output).as_posix()
                 row['report_status'] = 'success'
             except (OSError, ValueError) as error:
@@ -207,6 +214,13 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
         if row['status'].endswith('_failed') and row['report']:
             message+='; report='+str(output/row['report'])
         print(message,flush=True)
+        if force and run_folder is not None:
+            try:
+                from mucom_force import console_lines
+                for line in console_lines(run_folder,path.stem):
+                    print(line,flush=True)
+            except (OSError,ValueError,TypeError) as error:
+                print('Force summary unavailable: '+str(error),flush=True)
     return rows
 
 
@@ -223,6 +237,7 @@ def main():
     parser.add_argument('--outdir', type=Path, required=True, help='Separate output tree')
     parser.add_argument('--mucom88', type=Path, help='Native unattended MUCOM88 compiler')
     parser.add_argument('--muc-only', action='store_true', help='MUC export without MUB compilation')
+    parser.add_argument('--force', action='store_true', help='Continue with explicit target omissions and capacity diagnostics')
     parser.add_argument('--pcm-only', action='store_true', help='Explicit external PCM extraction; other engines excluded')
     parser.add_argument('--pcm-policy', choices=('strict','best-effort'), default='strict')
     parser.add_argument('--no-song-loop', action='store_true', help='Emit the first source traversal without a song loop')
@@ -240,7 +255,7 @@ def main():
         rows = run_batch(args.input, args.outdir, mucom88=args.mucom88,
                          muc_only=args.muc_only, timeout=args.timeout, song_loop=not args.no_song_loop,
                          normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
-                         pcm_only=args.pcm_only,pcm_policy=args.pcm_policy)
+                         pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     expected = 'muc_only' if args.muc_only else 'success'
