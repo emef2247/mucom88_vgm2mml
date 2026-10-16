@@ -22,12 +22,12 @@ def _row(value):
     return {key:('' if item is None else item) for key,item in row.items()}
 
 
-def dump(omissions, outdir, stem, enabled):
+def dump(omissions, outdir, stem, enabled, *, force_requested=True):
     root = Path(outdir)
     root.mkdir(parents=True, exist_ok=True)
     rows = [_row(value) for value in omissions]
     csv_path, json_path = root / (stem+'.mucom.force.csv'), root / (stem+'.mucom.force.json')
-    summary = dict(enabled=bool(enabled), omission_count=len(rows), omissions=rows,
+    summary = dict(enabled=bool(enabled), force_requested=bool(force_requested), omission_count=len(rows), omissions=rows,
                    csv=csv_path.name, json=json_path.name)
     with csv_path.open('w', newline='', encoding='utf-8') as stream:
         writer = csv.DictWriter(stream, fieldnames=FIELDS)
@@ -42,7 +42,8 @@ def format_lines(summary):
     if not summary.get('enabled'):
         return []
     rows = summary.get('omissions', [])
-    lines = ['Forced MUCOM projection: '+str(len(rows))+' omitted target operations']
+    label = 'Forced MUCOM projection' if summary.get('force_requested',True) else 'MUCOM explicit channel omission'
+    lines = [label+': '+str(len(rows))+' omitted target operations']
     if rows:
         lines.append('  Part  Source  Port  Register  Bits  Action  Count  Reason  Capacity(actual/limit)')
         groups = {}

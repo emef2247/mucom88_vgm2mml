@@ -33,26 +33,22 @@
 
 `opna_muc.py`、`pcm_mucom.py`、`mucom_aux.py`、`mucom_fm.py`、
 `mucom_normalization.py`、`scripts/export_mucom.py` と、
-通常CLIのMUCラッパーは変更していない。MUCOM固有のPCMバンク診断も保持する。
+通常CLIのMUCラッパーは、当初の共有コード同期では変更していない。
+その後のMUC固有拡張は以下に区別する。MUCOM固有のPCMバンク診断も保持する。
 詳細は [MDXのforce](opna_force.md) と [MUCのPCM相互変換](pcm_interoperability.md)。
 
 PDXの省略規則をMUCへ直結すると、MUCで表現できる機能を失うおそれがある。
 MUC向けのforce、チャンネル割当・省略、バンク容量回避は、ターゲットの条件に
 合わせて実装・診断する。コードの存在だけでMUCの対応済み経路とは扱わない。
 
-## 次のOPNAターゲット拡張
+## 同期後のOPNAターゲット拡張
 
-同期時点では次の経路を新設していない。その後の現状は次のとおり。
+- OPM、OPM＋SegaPCM、OPM＋MSM6258 → OPNA/MUC:
+  [基本FM投影を接続](opm_to_opna.md)。元のOPM State/Segmentsを保持する。
+- PSG → OPNAのSSG/MUC: [直接投影を実装](psg_to_ssg.md)。
+- MSM6258単独およびPSGとの併用: 既存のADPCM-B変換へ接続済み。
+- SCC → OPNA/MUC: 未実装。force時の除外と対応済み変換は区別する。
 
-- OPM + SegaPCM → OPNA/MUC
-- OPM → OPNA/MUC
-- OPM + MSM6258 → OPNA/MUC
-- PSG → OPNAのSSG/MUC: [直接投影を実装](psg_to_ssg.md)
-- SCC → OPNA/MUC
-
-OPM混在入力の現在のMUC経路は、明示的な `--pcm-only` によるPCM抽出のまま。
 PSG → OPNAはPSG → OPM投影の移植ではなく、ネイティブPSG情報をSSGへ
-写像する方針。OPMの最大8chに対するOPNAのFM6ch割当と、明示オプションに
-よる余剰ch省略は、別のターゲット投影として扱う。
-
-MSM6258単独およびPSGとの併用は、既存のADPCM-B変換へ接続済み。OPM混在のFM投影は未実装であり、force時の除外は対応とは区別する。
+写像する。OPMの最大8chからOPNAのFM6chへの固定割当・明示的な余剰ch省略は、
+独立したターゲット投影であり、ソース解析のch数を変更しない。

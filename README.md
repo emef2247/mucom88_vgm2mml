@@ -106,6 +106,8 @@ python scripts/export_mucom.py tests/fixtures/public/opna/pcm_controls \
 
 MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向けPCM投影データを生成できます。`--pcm-policy best-effort` を指定し、OPMなど他音源を明示的に除外してPCMだけを取り出す場合は `--pcm-only` を併用してください。実行例・対応範囲・容量制限は[PCM相互変換](docs/pcm_interoperability.md)を参照してください。
 
+OPMの基本4operator FMもOPNAへ投影してMUCを生成します。OPM＋MSM6258／SegaPCMではFMとPCMを併せて出力できます。未対応効果の省略には `--force`、6chを超える発音chの省略には `--opm-channel-policy omit` を明示してください。[OPM→OPNAの対応範囲](docs/opm_to_opna.md)を参照してください。
+
 PSGはOPMを経由せず、OPNAのSSGへ直接変換します。対応するノイズ・HWエンベロープも出力します。[PSG→SSGの対応範囲](docs/psg_to_ssg.md)を参照してください。
 
 ```bash
@@ -126,6 +128,7 @@ python scripts/export_mucom.py MSM6258_INPUT_DIRECTORY --outdir outputs/mucom88/
 | `--normalization-ms MS` | 短い発音の省略閾値と出力時刻の最大移動量（既定8ms、適用条件あり） |
 | `--timing-bound-ms MS` | 正規化を無効にした基準経路の時刻移動上限（既定8ms） |
 | `--force` | 対応範囲内の未対応機能・容量超過PCMを省略し続行。[適用範囲と一覧](docs/mucom_force.md) |
+| `--opm-channel-policy error/omit` | OPMの使用chがFM 6chを超える場合の停止／明示省略（既定error） |
 | `--no-loops` | 有限反復の生成を無効化 |
 | `--no-song-loop` | VGMヘッダーの曲ループを出力せず、最初の1周で終了 |
 | `--dump-passes` | 中間結果保存の明示指定。MUCOM88経路では指定の有無によらず保存 |
