@@ -305,6 +305,40 @@ def write_export_report(source, folder, stem, row):
             lines.append(f'Blocked: +{len(reasons) - 3} other reasons; see assessment JSON')
     else:
         lines.append('PCM assessment: not available / no PCM projection')
+    forced = conversion.get('projection_settings', {}).get('force_projection', {})
+    if forced.get('enabled'):
+        domain = forced.get('source_domain', 'SSG')
+        lines.extend(['', 'Diagnostics', '',
+            f"Force projection: enabled; unsupported {domain} intervals muted: {forced['omitted_intervals']}; "
+            "source IR and elapsed time retained",
+            f"Force omission details: {forced['intervals_csv']}; "
+            "full records in conversion projection_settings and OPNA omission JSON"])
+        for loss in forced.get('omissions', [])[:8]:
+            lines.append(f"Target omission: {domain} ch{loss['source_channel']}; {loss['reason']}; "
+                         f"source samples [{loss['start_vgmticks']}, {loss['end_vgmticks']}); "
+                         f"seconds [{loss['start_vgmticks']/44100:.6f}, "
+                         f"{loss['end_vgmticks']/44100:.6f}); entire interval muted")
+        if forced['omitted_intervals'] > 8:
+            lines.append(f"Other omitted intervals: {forced['omitted_intervals'] - 8}; see full CSV/JSON")
+        if forced.get('fm_omitted_writes'):
+            lines.extend([f"Force FM register-write omissions: {forced['fm_omitted_writes']}; "
+                          "unsupported/unprojected register effects; native writes retained",
+                          f"Force FM omission details: {forced['fm_writes_csv']}"])
+            for loss in forced.get('fm_omissions', [])[:8]:
+                lines.append(f"Target write omission: OPNA port{loss['port']}; "
+                             f"register 0x{loss['register']:02X}; data 0x{loss['data']:02X}; "
+                             f"source sample {loss['vgmticks']}; {loss['reason']}")
+            if forced['fm_omitted_writes'] > 8:
+                lines.append(f"Other omitted FM writes: {forced['fm_omitted_writes'] - 8}; see full CSV/JSON")
+        if 'skipped_registers' in forced:
+            from opna_force import format_register_list
+            lines.extend(format_register_list(forced['skipped_registers']))
+            lines.append('Register details: '+forced['registers_csv'])
+    if target_current:
+        from opna_force import capacity_lines
+        capacity = capacity_lines(folder, stem)
+        if capacity:
+            lines.extend(['', 'Diagnostics', '', *capacity])
     for exclusion in conversion.get('excluded_sources', []):
         lines.append(f'Target omission: {exclusion["chip"]}; {exclusion["reason"]}')
     if row.get('detail') or unavailable:

@@ -49,14 +49,33 @@ def dump_allocation(rows, outdir, stem):
     return summary
 
 
-def project(ssg, channel_map, *, loop_start=None, pitch_policy='clamp'):
+def project(ssg, channel_map, *, loop_start=None, pitch_policy='clamp', force=False):
     # A discarded ninth part cannot reject retained FM/SSG because of a target
     # mode limitation. Every part remains in the independent native SSG dump.
     selected = {ch: ssg.segments[ch] for ch in channel_map}
     baseline = project_psg(selected, SccAnalysis({}, ()), psg_clock=ssg.clock_hz / 4,
         scc_clock=0, end_vgmticks=ssg.source_end_vgmticks,
-        psg_model='fm', pitch_policy=pitch_policy)
-    baseline.settings.update(source_origin='opna_ssg',
+        psg_model='fm', pitch_policy=pitch_policy, force=force)
+    omissions = []
+    for loss in baseline.settings['forced_omissions']:
+        segment = selected[loss['source_ch']][loss['source_row']]
+        omissions.append(dict(source_ch=loss['source_ch'], source_channel=loss['source_channel'],
+            source_row=loss['source_row'], source_event_id=segment.source_event_id,
+            original_event_id=segment.original_event_id, loop_iteration=segment.loop_iteration,
+            start_vgmticks=loss['start_vgmticks'], end_vgmticks=loss['end_vgmticks'],
+            target_ch=channel_map[loss['source_ch']], source_mode=segment.mode,
+            source_volume=segment.volume, envelope_enabled=segment.envelope_enabled,
+            reason=loss['reason'].replace('psg_', 'ssg_'), action='mute_entire_ssg_interval'))
+    omitted = {(r['source_ch'], r['source_row']): r for r in omissions}
+    for row in baseline.rows:
+        original = ssg.segments[row['source_ch']][row['source_row']]
+        loss = omitted.get((row['source_ch'], row['source_row']))
+        row.update(source_envelope_enabled=original.envelope_enabled,
+                   projected_mode=0 if loss else original.mode)
+        if loss:
+            row.update(source_mode=original.mode, source_volume=original.volume,
+                       approximation='--force: ' + loss['reason'] + '; entire interval muted')
+    baseline.settings.update(force_enabled=force, forced_omissions=omissions, source_origin='opna_ssg',
         source_clock_profile='YM2608 prescaler: master/4, master/2 or master',
         source_clock_per_segment=True,
         stage='canonical PSG profile before final OPNA channel remapping',
@@ -86,6 +105,27 @@ def project(ssg, channel_map, *, loop_start=None, pitch_policy='clamp'):
             synthetic_phase=('terminal' if write.vgmticks == ssg.source_end_vgmticks else 'initial')
                             if segment is None else None))
     return rows, baseline, performance
+
+
+
+def dump_omissions(omissions, outdir, stem, *, force):
+    out = Path(outdir)
+    columns = ['source_ch', 'source_channel', 'source_row', 'source_event_id',
+               'original_event_id', 'loop_iteration', 'start_vgmticks', 'end_vgmticks',
+               'target_ch', 'source_mode', 'source_volume', 'envelope_enabled', 'reason', 'action']
+    csv_name = stem + '.opna_ssg.omissions.csv'
+    with (out / csv_name).open('w', encoding='utf-8', newline='') as stream:
+        writer = csv.DictWriter(stream, fieldnames=columns, lineterminator='\n')
+        writer.writeheader()
+        writer.writerows(omissions)
+    summary = dict(enabled=force, scope='opna_ssg_noise_and_hardware_envelope',
+        omitted_intervals=len(omissions),
+        omitted_channel_samples=sum(r['end_vgmticks'] - r['start_vgmticks'] for r in omissions),
+        source_ir_unchanged=True, elapsed_time_unchanged=True, sample_rate_hz=44100,
+        intervals_csv=csv_name, omissions=omissions)
+    (out / (stem + '.opna_ssg.omissions.json')).write_text(
+        json.dumps(summary, indent=2) + '\n', encoding='utf-8')
+    return summary
 
 
 def merge(fm_rows, ssg_rows):

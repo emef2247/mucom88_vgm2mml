@@ -65,6 +65,7 @@ class PcmMdxProjection:
     typed_commands: tuple[dict, ...] = ()
     omitted_playbacks: tuple[dict, ...] = ()
     source_origin: str = 'native_msm6258'
+    force_capacity: object = None
 
     @property
     def boundary_times(self):
@@ -73,10 +74,11 @@ class PcmMdxProjection:
 
     def summary(self):
         projected = self.source_origin != 'native_msm6258'
-        return dict(pcm_sample_count=len(self.bindings),
+        return dict(pcm_force_capacity=self.force_capacity.summary() if self.force_capacity else None,
+                    pcm_sample_count=len(self.bindings),
                     pcm_source_origin=self.source_origin,
                     pcm_playback_count=sum(u.kind == 'pcm_note' for u in self.units),
-                    pcm_pdx_file=self.pdx_name,
+                    pcm_pdx_file=self.pdx_name if self.bindings else None,
                     pcm_target='MDX PCM4/8 enabled; single P track, one bank, 96 slots',
                     pcm_track_count=16, pcm_mode_command='E8',
                     pcm_inactive_tracks=list('QRSTUVW'),
@@ -100,6 +102,8 @@ class PcmMdxProjection:
 
     def dump(self, outdir, stem):
         out = Path(outdir)
+        if self.force_capacity is not None:
+            self.force_capacity.dump(out, stem)
         for suffix, rows, fields in (
             ('bindings', [asdict(b) for b in self.bindings], tuple(PcmBinding.__dataclass_fields__)),
             ('projection', self.rows, tuple(self.rows[0]) if self.rows else ('playback_id',)),
@@ -137,7 +141,7 @@ def boundaries(analysis):
 
 
 def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playback_ids=(), normalization_ms=8,
-            tick_mapper=None, song_loop_start=None):
+            tick_mapper=None, song_loop_start=None, force=False):
     """Bind unchanged samples; omit nominated notes within the source-time policy."""
     from conversion_config import normalization_samples
     omission_bound = normalization_samples(normalization_ms)
@@ -167,7 +171,7 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
                        'Standard X68000 MDX PCM requires 10-bit output; 12-bit source output is unsupported',
                        cause='target_constraint')
         assessment.block('Standard X68000 MDX PCM requires 10-bit output')
-    if len(analysis.samples) > 96:
+    if len(analysis.samples) > 96 and not force:
         reject('Initial standard PDX target supports at most 96 distinct samples', status='lossy', code='slot_capacity')
     for sample in analysis.samples:
         if sample.codec != 'msm6258-adpcm4-low-first':
@@ -177,7 +181,7 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
             assessment.block('Standard PDX target requires 4-bit low-nibble-first MSM6258 ADPCM')
         if not sample.encoded_bytes or len(sample.encoded_bytes) > 0xffffff:
             reject('PDX sample must contain 1..16777215 encoded bytes', status='fail', code='invalid_sample_length')
-        if len(sample.encoded_bytes) > 65535:
+        if len(sample.encoded_bytes) > 65535 and not force:
             assessment.add('sample', 'unverified', 'sample_length_exceeds_projection_scope',
                            'Samples above 65535 bytes are outside the verified projection scope; '
                            'extended-mode playback has not been validated and no truncation fallback is defined',
@@ -186,6 +190,13 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
             assessment.block('Sample length exceeds verified 65535-byte projection scope; no defined fallback')
     if assessment.block_reasons:
         raise ProjectionError('; '.join(assessment.block_reasons), assessment)
+    capacity = None
+    omit_ids = set(omit_playback_ids)
+    if force:
+        from pcm_force_capacity import select_capacity
+        capacity = select_capacity(analysis, omit_playback_ids=omit_ids, normalization_ms=normalization_ms)
+    capacity_omit_ids = capacity.omitted_playback_ids if capacity is not None else frozenset()
+    binding_samples = capacity.analysis.samples if capacity is not None else analysis.samples
     if analysis.source_loop_vgmticks is not None and song_loop_start is None:
         assessment.add('loop', 'lossy', 'song_loop_not_emitted',
                        'MDX projection currently emits one finite source pass; the VGM song loop is lost',
@@ -205,11 +216,11 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
                            'Stopped-byte carryover is resolved only under the libvgm reset profile; '
                            'native buffered-data behavior is unverified', scope='runtime_validation')
     bindings = tuple(PcmBinding(s.sample_id, 0, i, f'samples/{s.sample_id:03}.adpcm')
-                     for i, s in enumerate(analysis.samples))
+                     for i, s in enumerate(binding_samples))
     by_sample = {b.sample_id: b for b in bindings}
+    source_sample_ids = {s.sample_id for s in analysis.samples}
     by_event = {c.source_event_id: c for c in analysis.controls}
     units, rows, commands, omitted = [], [], [], []
-    omit_ids = set(omit_playback_ids)
     cursor = source_cursor = 0
     previous_source_end = 0
     loop_tick = target_tick(song_loop_start) if song_loop_start is not None else None
@@ -281,16 +292,11 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
                               source_start, source_end))
 
     for p in analysis.playbacks:
-        if song_loop_start is not None and (
-                p.start_vgmticks < song_loop_start < p.end_vgmticks
-                or p.end_vgmticks == analysis.source_end_vgmticks and p.termination == 'source_end'):
-            reject('PCM playback continues across the song-loop boundary; independent PDX restart is undefined',
-                   code='song_loop_pcm_continuation', criterion='loop')
         schedule_fallback = (set(p.issues) == {'irregular_byte_supply'}
                              and p.decoder_reset_known and p.pan is not None
                              and p.stream_transfer_end - p.stream_transfer_start == p.supplied_bytes
                              and p.supplied_bytes > 0 and not analysis.issues)
-        if (not p.independently_playable and not schedule_fallback) or p.sample_id not in by_sample:
+        if (not p.independently_playable and not schedule_fallback) or p.sample_id not in source_sample_ids:
             for reason in p.issues:
                 known = reason in ('rate_change_during_playback', 'unsupported_adpcm3')
                 assessment.add('playback', 'lossy' if known else 'unverified', reason,
@@ -320,6 +326,16 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
         if p.start_vgmticks < previous_source_end:
             reject('Multiple overlapping physical PCM playbacks are unsupported', code='overlap')
         previous_source_end = p.end_vgmticks
+        if any(event_id not in by_event for event_id in p.control_event_ids):
+            reject(f'PCM playback {p.playback_id} references missing source controls',
+                   status='fail', code='missing_playback_control')
+        if p.playback_id in capacity_omit_ids:
+            continue
+        if song_loop_start is not None and (
+                p.start_vgmticks < song_loop_start < p.end_vgmticks
+                or p.end_vgmticks == analysis.source_end_vgmticks and p.termination == 'source_end'):
+            reject('PCM playback continues across the song-loop boundary; independent PDX restart is undefined',
+                   code='song_loop_pcm_continuation', criterion='loop')
         changed_pan = []
         current_pan = p.pan
         for event_id in p.control_event_ids:
@@ -412,10 +428,20 @@ def project(analysis, *, stem, sample_multiplier=1, policy='strict', omit_playba
             dict.fromkeys(item['code'] for item in assessment.items if item['status'] == 'lossy'))
         assessment.block(detail)
         raise ProjectionError(detail, assessment)
+    if capacity is not None:
+        for row in capacity.rows:
+            if row['action'] == 'omit':
+                assessment.add('capacity', 'lossy', 'force_pcm_' + row['cap_kind'], row['reason'],
+                               cause='explicit_force_capacity', playback_id=row['playback_id'],
+                               source_event_id=row['source_first_event_id'],
+                               start_vgmticks=row['source_start_vgmticks'],
+                               end_vgmticks=row['source_end_vgmticks'],
+                               source_value=dict(sample_id=row['sample_id'], actual=row['actual'], limit=row['limit']),
+                               projected_value='timed rest', fallback='explicit_force_omit_whole_sample')
     emit('end', start_tick=end)
     return PcmMdxProjection(bindings, tuple(units), tuple(rows), stem+'.pdx', sample_multiplier,
                             clock_rows, assessment, tuple(commands), tuple(omitted),
-                            getattr(analysis, 'source_origin', 'native_msm6258'))
+                            getattr(analysis, 'source_origin', 'native_msm6258'), capacity)
 
 
 def default_generator():

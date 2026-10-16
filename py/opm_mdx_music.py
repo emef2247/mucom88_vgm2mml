@@ -15,14 +15,11 @@ from opm_mdx import mdx_tick, projected_samples
 from opm_mdx_structure import note_spelling, voice_key
 from mdx_compaction import compact
 from mdx_format import wrap_track
-from source_loop_plan import SourceLoopPlan
+from musical_structure import source_plan
 from mdx_duration import duration_spelling, timed
 
 # Register-bank order M1,M2,C1,C2 (not Key register bit order).
 CARRIERS = (8, 8, 8, 8, 12, 14, 14, 15)
-
-
-from musical_structure import source_plan
 
 
 def infer_clock(segments, end_vgmticks, *, additional_times=()):

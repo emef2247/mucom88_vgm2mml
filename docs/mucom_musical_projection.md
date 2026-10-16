@@ -42,6 +42,13 @@ ADPCM-Bは32個のnative bank slotへ元の符号化データを格納します�
 
 VGMが宣言したloopへ参加する各パートに`L`を置き、共通のloop endへrestで揃えます。introだけのパートは有限で終わります。FM／SSGの保持音は、LとEOFで意味状態が一致する場合にtieで継続します。EOF-held FMは先頭の最初のキー書き込みが全Key-Offで、Lと同じ投影clockになる場合も接続できます。状態が異なる正の保持区間を跨ぐ境界は、まだ理由付きで拒否します。loopがない入力のEOFで切られた保持音は、投影EOFで終了させることを診断します。native startup位相、loop periodの補正、以後の同じperiodによる再生は別々に記録・比較します。`--no-loops`は有限フレーズの表記を展開するオプションで、VGMの曲loopを取り除きません。`--no-song-loop`はターゲットの曲loopを無効化し、最初の1回分を元VGMのEOFまで有限出力します。FM／SSGのloop seam解析・L／EOF接続制約と曲loop用の時間制約も適用しません。元のloop情報はsource CSVに残り、`*.mucom.json`の`song_loop`にsource startとtarget start（無効時はnull）を区別して記録します。有限フレーズの反復圧縮は独立して有効です。公開の手書きfixtureの「ファイル全体でL 1個」は素材の契約であり、production multi-part MUCの制約ではありません。
 
+PSGを含む曲loop入力では、初回の演奏を保持してから、曲末状態を引き継いだ
+反復分を共有readerで再解析し、初回EOF（2周目開始）へ`L`を置きます。
+混在するFM／PCMも同じ展開後の時間軸に揃えます。元のloop開始・初回EOFと
+反復開始・展開後EOFは別々に記録し、反復側の継ぎ目検査を省略しません。
+PSGを含まない経路のループ動作は従来どおりです。
+詳細と出現IDの対応は[PSG直接投影](psg_to_ssg.md#ノイズエンベロープループ)を参照してください。
+
 ## 中間成果物
 
 - `*.opna.music.csv`：FM whole gate、内部trajectory、元Segment／イベント対応。
