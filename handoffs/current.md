@@ -1,54 +1,35 @@
-# Active checkpoint: PSG carried-state song loops (2026-10-16)
+# Active OPM -> OPNA regression checkpoint (2026-10-16)
 
-## Current implementation
+User authorized roadmap step1; user owns private regression/listening. Basic
+OPM->OPNA implementation is saved in working tree; no stage/commit/push/branch
+change. Canonical MUC and export_mucom accept --opm-channel-policy error|omit.
+Default rejects >6 active primary source channels; omit is explicit, fixed
+whole-song first6 active channels. --force alone does not authorize that loss.
 
-- Direct PSG -> OPNA SSG and MSM6258 -> ADPCM-B/DELTA, scoped --force and
-  capacity omissions are saved in the working tree. See docs/psg_to_ssg.md,
-  docs/mucom_force.md and docs/pcm_interoperability.md for exact scope.
-- PSG musical notes reuse MSX mml_envelopes.extract_notes on an original-sample
-  view; native Segments remain intact. Software entry resets E, internal decay
-  stays held; HW envelope continuity/global shape actions remain separate.
-- Normalization retains all actual PSG controls (redundant/inactive/EOF), with
-  shared bounded clocks and positive shape-trigger protection.
-- User's last PSG regression18/20:05/14 failed because original loop-head state
-  differs from EOF-carried state, not missing timestamps. User now authorized
-  retaining the initial pass and replaying loop source commands from EOF state.
+py/opm_opna.py retains native OPM and emits .opm_opna.target.writes/state/
+segments/music.csv and .opm_opna.json. Replayable target initialization and
+unique target event IDs survive normalization. Original OPM occurrence and
+raw command identities are separate mapping fields. Pitch correction occurs
+once at7987200Hz; shared high latch always rewritten; operator banks and
+logical Key masks use their distinct orders. Force diagnoses DT2/LFO/CSM,
+noise operator/pan0 TL approximations and out-of-range pitch clamping. Explicit
+channel omission is displayed/saved even without force, distinguished by
+force_requested=false. Native OPNA FM has priority under force if both use FM.
 
-## New carried-state implementation
+OPM enabled song loops use shared2pass reader and carried source state. External
+MSM/SegaPCM use same replay count/end/L. Native OPNA SSG/PCM retain their own
+source clock even when FM uses projected target clock. No fake OPNA raw source.
 
-PSG-containing MUC routes with enabled song looping request2 traversals using
-shared command_times/parse_vgm. Interim EOF is suppressed, chip/stream/wait state
-carried, L placed at replay_start_samples (first EOF). NonPSG routes retain
-previous loop policy. --no-song-loop remains finite1pass. Mixed native FM/PCM,
-MSM6258 and SegaPCM use the same replay count/end/boundary; external PCM equality
-is asserted. Existing eligibility, phase, resource and capacity guards remain.
+Checked: test_opm_opna6 + test_mucom_force3 + test_mucom_cli3 =12 pass. Public
+SEGAONE batch --muc-only --force --opm-channel-policy omit --pcm-policy best-effort
+succeeded; one FM gate, PCM/voice bank,41 target writes, maximum nominal pitch
+error0.139698cent. Inspected mappings and MUC A/K tracks. Artifacts under
+outputs/diagnostics/opm_opna_check_20261016. No compiler/private regression/audio.
+Architect read-only completion review found no basic-route blocker; both audit
+cautions (channel omission visibility and range loss) were addressed.
 
-MUC SourceOccurrence and PSG native rows retain unique occurrence source_event_id,
-original_event_id, loop_iteration and original_vgmticks. Reader timing CSV maps
-both IDs. Short FM omission now uses occurrence IDs, so one short replay cannot
-remove its long original gate. Original EOF and expanded EOF remain separate in
-song_loop report. No source resets or forced seam bypass introduced.
-
-## Validation
-
-Saved implementation before tests.12 distinct focused authored cases pass:
-8existingPSG cases,3new replay cases (delayed state/EOF/provenance/finite mode,
-carried wait override, mixedPSG+MSM timeline),1new mixedFM omission case.
-No private reconversion, broad regression, compiler execution or listening.
-Persistent authored intermediate/MUC inspection:
-outputs/diagnostics/psg_carried_loop_20261016. Original loop2000/EOF5000;
-replayL5000/expandedEOF8000. Original head tone288, carried head352;
-stable_carry proof, original/occurrence source mapping, L/ties inspected.
-Focused read-only architecture review found no blocker; Sega diagnostic wording
-now refers to rendered loop-body freezing rather than falsely claiming1pass.
-
-## Next allowed action
-
-User owns DSLAYER4/other private regression and native listening. Inspect actual
-reported failures before further changes. Do not run private failed-song checks,
-relax phase/decoder/capacity guards, disable looping implicitly or change timeout.
-OPM -> OPNA and SCC -> YM2608 remain later work; surplusFM channels still need the
-agreed explicit omission option. No stage/commit/push/branch changes by agent.
-External notes:
-field_notes/2026-10-16_psg_carried_loop_replay.md
-field_notes/2026-10-16_psg_remaining_loop_state_mismatch.md
+User regression is next. Do not silently tighten/loosen timing or remove loops
+for compiler capacity. Future roadmap: x68k PSG/SSG musical-unit reuse, scoped
+noise support, measured FM structure improvements, eventual MSX backport.
+Details: docs/opm_to_opna.md and external
+field_notes/2026-10-16_opm_opna_initial_projection.md.

@@ -427,7 +427,7 @@ def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,no
 
 def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 timing_bound_ms=8.0,loops=True,song_loop=True,normalize_lengths=True,normalization_ms=8.0,
-                pcm_only=False,pcm_policy="strict",force=False):
+                pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="error"):
     source,output=Path(input_path),Path(outdir)
     output.mkdir(parents=True,exist_ok=True)
     passes=Path(diagnostics_outdir) if diagnostics_outdir else output
@@ -441,9 +441,9 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 'Native startup latency, envelope/acoustic identity and listening are separate checks.'])
     force_omissions=[]
     def save():
-        if force:
+        if force or force_omissions:
             from mucom_force import dump
-            report['force_projection']=dump(force_omissions,passes,stem,enabled=True)
+            report['force_projection']=dump(force_omissions,passes,stem,enabled=True,force_requested=force)
         else:
             for suffix in ('.mucom.force.csv','.mucom.force.json'):
                 (passes/(stem+suffix)).unlink(missing_ok=True)
@@ -478,7 +478,8 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             raise ConversionError('PCM policy must be strict or best-effort')
         used=set(usage['used_chips'])-set(usage['compatibility_initialization'])
         psg_input='psg' in used and not pcm_only
-        excluded=used-{'opna','psg','pcm','segapcm'}
+        opm_input='opm' in used and not pcm_only
+        excluded=used-{'opna','opm','psg','pcm','segapcm'}
         if excluded and not pcm_only and not force:
             raise ConversionError('Unsupported source projection: '+', '.join(sorted(excluded)))
         if force and not pcm_only:
@@ -493,7 +494,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 raise ConversionError('Simultaneous MSM6258 and SegaPCM projection is unsupported')
             if pcm_policy!='best-effort':
                 raise ConversionError('MSM6258/SegaPCM transcoding requires --pcm-policy best-effort')
-            excluded=used-{'opna','psg',*external_pcm}
+            excluded=used-{'opna','opm','psg',*external_pcm}
             if excluded and not pcm_only and not force:
                 raise ConversionError('Unsupported FM/other source projection: '+', '.join(sorted(excluded))+
                                       '; use --pcm-only to explicitly extract PCM')
@@ -504,7 +505,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             raise ConversionError('--pcm-only requires an MSM6258 or SegaPCM source')
         # Retain the original traversal, then reconstruct PSG loop state from
         # the carried EOF seed. Every projected engine uses this same replay.
-        source_loop_count=2 if song_loop and psg_input else 1
+        source_loop_count=2 if song_loop and (psg_input or opm_input) else 1
         if source_loop_count>1:
             events=source_occurrences(raw,loop_count=source_loop_count)
         interop=None
@@ -512,20 +513,22 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
         for command,chip in ((0xa0,'psg'),(0xd2,'scc'),(0x51,'opll')):
             if chip in usage['compatibility_initialization']:allowed.add(command)
         if psg_input:allowed.add(0xa0)
+        if opm_input:allowed.update((0x54,0xa4))
         if force:allowed.update((0x54,0xa4,0xd2,0x51))
         if interop_kind:
             allowed.update((0xb7,0xc0,0x90,0x91,0x92,0x93,0x94,0x95))
             if pcm_only: allowed.update((0x54,0xa4,0xa0,0xd2,0x51))
         unsupported=next((e for e in events if e.command not in allowed and not 0x70<=e.command<=0x7f),None)
         if unsupported:raise ConversionError(f'Unsupported active command {unsupported.command:#x} at {unsupported.address:#x}')
-        metadata,pcm_metadata,loop={},{},{}
+        metadata,pcm_metadata,loop,opm_metadata={},{},{},{}
         progress('native_state_segments_pcm_ir')
         parse_vgm(str(source),str(passes),opna_metadata=metadata,opna_pcm_metadata=pcm_metadata,
+                  opm_metadata=opm_metadata,
                   loop_metadata=loop,dump_loop=True,dump_opna_segments=True,
-                  dump_opm_segments=bool(interop_kind) or force,loop_count=source_loop_count,
+                  dump_opm_segments=bool(interop_kind) or force or opm_input,loop_count=source_loop_count,
                   include_vgmticks=True)
         analysis=metadata.get('analysis')
-        if analysis is None and (interop_kind or psg_input or force):
+        if analysis is None and (interop_kind or psg_input or opm_input or force):
             from opna import OpnaAnalysis
             analysis=OpnaAnalysis((),(),metadata['source_end_vgmticks'],False,(),())
         if analysis is None:raise ConversionError('No native YM2608 source evidence')
@@ -560,12 +563,33 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 from opna import OpnaAnalysis
                 analysis=OpnaAnalysis((),(),end,False,(),())
             pcm_metadata['analysis']=interop.normalization_view
+        fm_origin='opna'
+        if opm_input:
+            native_active=any(e.state.key_mask for e in analysis.events)
+            if native_active:
+                if not force:raise ConversionError('Native OPNA and OPM FM cannot share six MUC FM parts')
+                force_omissions.append(dict(source_chip='OPM',part='FM',action='omit_opm_fm_part',
+                    reason='native_opna_fm_priority_channel_capacity',source_start_vgmticks=0,
+                    source_end_vgmticks=end))
+            else:
+                progress('opm_to_opna_target_projection')
+                from opm import build_segments as build_opm
+                from opm_opna import project as project_opm
+                native_opm=build_opm(opm_metadata['csv_path'],end_vgmticks=end)
+                projection=project_opm(native_opm,channel_policy=opm_channel_policy,
+                    force=force,omissions=force_omissions)
+                projection.dump(passes,stem)
+                analysis=projection.analysis;fm_origin='opm_opna.target'
+                report['opm_projection']=projection.report
+                report['fm_analysis_origin']='explicit OPM-to-OPNA target projection; native OPM retained'
+                report['diagnostics'].append('OPM FM pitch projected once to target OPNA clock; DT1/EG physical rates and acoustic identity are unverified')
         source_clock=analysis.events[0].clock_hz if analysis.events else (TARGET_CLOCK_HZ if interop_kind or psg_input or force else pcm_metadata['analysis'].clock_hz)
-        report['source_clock_hz']=source_clock if metadata['clock_hz'] else None
+        report['source_clock_hz']=source_clock if metadata['clock_hz'] or fm_origin!='opna' else None
+        report['native_opm_clock_hz']=opm_metadata['clock_hz'] if opm_input else None
         if source_clock!=TARGET_CLOCK_HZ:
             report['diagnostics'].append('Alternate source clock: pitch/rate projected; envelope, detune and hardware-LFO physical rates are not corrected')
         progress('musical_gate_construction')
-        gates=build_fm_gates(analysis);dump_gates(gates,passes/(stem+'.opna.music.csv'))
+        gates=build_fm_gates(analysis);dump_gates(gates,passes/(stem+'.'+fm_origin+'.music.csv'))
         from opna_music import audit_fm_key_edges
         original_analysis=analysis;original_gates=gates
         seams=analyze_fm_seams(analysis,gates,loop_start,end)
@@ -610,7 +634,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 musical_note_count=sum(not n.rest for rows in psg_notes.values() for n in rows))
             report['diagnostics'].append('PSG tone/noise/envelope periods map directly to SSG; AY/YM amplitude law, analog output and envelope phase are not certified')
         ssg_controls=[]
-        for part,items in ({} if pcm_only or not ssg_eligible else project_ssg(ssg,events,raw,source_clock,
+        for part,items in ({} if pcm_only or not ssg_eligible else project_ssg(ssg,events,raw,metadata['clock_hz'] or source_clock,
                 global_controls=ssg_controls,source_command=ssg_command,
                 effective_source_clock_hz=ssg_effective_clock,force=force,omissions=force_omissions,
                 musical_notes=ssg_notes)).items():
@@ -626,7 +650,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             tracks['K']=interop.build_units()
         else:
             try:
-                pcm_items,bank,bindings=project_pcm(pcm_metadata['analysis'],source_clock,raw=raw,
+                pcm_items,bank,bindings=project_pcm(pcm_metadata['analysis'],metadata['clock_hz'] or source_clock,raw=raw,
                     diagnostics=report['diagnostics'],projection=report['pcm_projection'])
             finally:
                 if report['pcm_projection'].get('source_epochs'):

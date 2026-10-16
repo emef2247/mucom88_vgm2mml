@@ -624,6 +624,8 @@ def main(argv=None):
     parser.add_argument('--normalization-ms',type=float,default=8.0,
                         help='Output normalization bound in milliseconds (default: 8)')
     parser.add_argument('--force',action='store_true',help='Omit explicitly unsupported target effects and excess PCM; record every omission')
+    parser.add_argument('--opm-channel-policy',choices=('error','omit'),default='error',
+                        help='OPM8 to OPNA6: error by default, or explicitly omit excess active channels')
     parser.add_argument('--pcm-only',action='store_true',help='Explicitly extract MSM6258/SegaPCM; retain source evidence, exclude other engines')
     parser.add_argument('--pcm-policy',choices=('strict','best-effort'),default='strict',
                         help='External PCM transcoding requires explicit best-effort')
@@ -637,14 +639,15 @@ def main(argv=None):
                            timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
                            song_loop=not args.no_song_loop,
                            normalize_lengths=args.normalize_lengths,normalization_ms=args.normalization_ms,
-                           pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force)
+                           pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force,
+                           opm_channel_policy=args.opm_channel_policy)
     except (ConversionError,OSError) as error:
-        if args.force:
+        if args.force or args.opm_channel_policy=='omit':
             from mucom_force import console_lines
             for line in console_lines(args.diagnostics_outdir or args.outdir,Path(args.vgm).stem):
                 print(line)
         parser.exit(1,f'MUC conversion failed: {error}\n')
-    if args.force:
+    if args.force or args.opm_channel_policy=='omit':
         from mucom_force import console_lines
         for line in console_lines(args.diagnostics_outdir or args.outdir,Path(args.vgm).stem):
             print(line)
