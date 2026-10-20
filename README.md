@@ -1,16 +1,16 @@
 # mucom88_vgm2mml
 
-VGMを検査可能な中間表現へ変換し、その中間表現からMMLとPCM IRを生成するツールです。現在の主な入力はYM2608（OPNA）、MML出力はMUCOM88形式（MUC）です。
+VGMのレジスタ操作を検査可能な中間表現（State／Segment／PCM IR）へ変換し、編集可能なMMLを生成するツールです。既定ではYM2608（OPNA）などからMUCOM88形式のMUCを生成します。追加ターゲットとして、MSXのPSG・SCC・OPLLなどを扱うMUCOMSX向けMUC生成にも対応しています。
 
-このプロジェクトの主目的は、VGMのレジスタ操作から導出される情報を、編集可能なMUCおよびPCM IRとして表現することです。生成したMUCは、対応するmucomDotNETコンパイラでMUBへコンパイルできます。
+このプロジェクトの主目的は、VGMから音楽的な構造を抽出し、音源固有の情報を保持しながらMMLやPCM IRへ投影することです。MUCOM88向けMUCは対応するmucomDotNETコンパイラで、MUCOMSX向けMUCはMUCOMSXのネイティブ環境で、それぞれMUBへコンパイルできます。
 
 出力の時間精度は `--normalization-ms`（既定8ms）で調整できます。値を小さくすると細かなタイミング変化を保持し、大きくすると対応範囲内で短い発音の省略と時刻の近似を広く許容します。元のSegment・PCM IRは保持します。
 
-MUCは発音内の制御とフレーズの反復を構造化し、音価表記と行分割で出力します。変換の詳細は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md)を参照してください。
+MUCは発音内の制御とフレーズの反復を構造化して出力します。MUCOM88の詳細は[MUCOM88向け変換](docs/mucom_musical_projection.md)、MUCOMSXの詳細は[MUCOMSX向け変換](docs/mucomsx_conversion.md)を参照してください。
 
-Python 3.10以降を使用します。主な実行環境はWSLです。MUC生成はPythonのみで行い、MUB生成にはWindows上の外部コンパイラを使用します。
+Python 3.10以降を使用します。主な実行環境はWSLです。MUC生成はPythonのみで行います。MUB生成にはターゲットに応じた外部コンパイラ／実行環境が必要です。
 
-## 通常変換
+## MUCOM88向け変換（既定）
 
 ```bash
 python vgm2mml.py input.vgm --outdir OUTPUT
@@ -20,9 +20,47 @@ python vgm2mml.py input.vgm --outdir OUTPUT
 
 VGM／VGZの実際のコマンドから使用音源を判定します。MUCOM88出力では、対応範囲内のOPNAのFM・SSG・リズム・ADPCM-Bを処理します。未対応の音源・組み合わせ・ストリームは診断情報として報告します。
 
-## おまけ機能
+## MUCOMSX向け変換
 
-既定のMUCOM88出力とは別に、MMLの生成に関しては以下オプションでMDX　MML/PCM IR, 及び MGS MMLを出力可能です。
+`--target mucomsx` では、MSX向け音源を含むVGMからMUCOMSX形式のMUCを生成します。既定の `--target mucom` とは独立した変換経路で、元のState／Segmentと解釈・投影の診断情報を保持します。
+
+```bash
+python vgm2mml.py input.vgm --target mucomsx --outdir outputs/mucomsx --dump-passes
+```
+
+主な音源の扱いは次のとおりです。
+
+| 入力音源 | MUCOMSXでの出力 | 留意点 |
+|---|---|---|
+| PSG（AY系） | MSX内蔵PSG | 音量変化、ノイズ、HWエンベロープを対象範囲内で投影 |
+| SCC | OPNA FM | SCC全5声を4オペレータ加算合成で近似。ネイティブSCC波形再生ではない |
+| OPLL（YM2413） | MSX-MUSIC（OPLL） | MUCOMSXのMUCインターフェースは6旋律声＋リズム。超過分の自動OPNA代替は行わない |
+| DCSG（SN76489系） | PSG／OPNA SSG | 単体／2基を解析。ノイズ・音量則などに近似あり |
+
+OPLLの音色はMUCOMSXが選択するROMプリセットに近似され、元のユーザー定義音色や全レジスタの完全再現は保証しません。`--opll-rhythm layered` でOPNAリズムを重ねたり、`--psg-enhance-cents N` でOPNA SSGによるPSGの補助音を追加したりできます。これらは任意指定です。
+
+### MUC・MUBの一括生成
+
+```bash
+python scripts/export_mucom.py INPUT_DIRECTORY --target mucomsx \
+  --outdir outputs/mucomsx_set --muc-only
+
+# MUCOMSXの実行環境を設定済みの場合は、--muc-onlyを外してMUBも生成
+python scripts/export_mucom.py INPUT_DIRECTORY --target mucomsx \
+  --outdir outputs/mucomsx_compiled
+```
+
+MUCの生成にはPythonを使用します。MUBの生成には、ローカルのDOS／ROM環境とopenMSX上で動作するMUCOMSXが必要です。環境構築には `scripts/setup_mucomsx.py`、実行設定には `.tools/mucomsx-runtime.json` を使用します。外部バイナリや個人のROM／DOSイメージは同梱しません。
+
+一括出力では曲ごとのMUC／MUBを `tracks/`、診断・コンパイルログを `_diagnostics/` に保存します。`--force` による未対応パートの省略は診断付きで行われ、元のSegmentは保持されます。
+
+**制約：** SCC→OPNA FMやOPLL音色は近似です。また、長い楽曲ではMUCOMSXのMUC入力容量（64 KiB）などの制約により、MUC生成やMUBコンパイルに失敗する場合があります。MUC生成・MUBコンパイル・VGM往復検証・聴感上の一致は、それぞれ別の評価項目です。
+
+詳細は[変換仕様](docs/mucomsx_conversion.md)、[環境構築](docs/mucomsx_setup.md)、[ネイティブ実行・一括コンパイル](docs/mucomsx_runtime.md)、[DCSG解析](docs/dcsg_source.md)を参照してください。
+
+## その他の出力ターゲット
+
+MUCOM88／MUCOMSXとは別に、継承機能としてMDX MML／PCM IRおよびMGS MMLも出力できます。
 
 x68k側と共通の解析・継承MDXコードを同期しています。同期範囲とMUC固有処理の境界は[コード同期](docs/x68k_code_sync.md)を参照してください。
 
@@ -104,9 +142,9 @@ python scripts/export_mucom.py tests/fixtures/public/opna/pcm_controls \
 
 推定再生位置、出力時刻、再生速度の差は中間結果に保存します。repeat、曲ループをまたぐPCM保持音、再生中のアドレス／メモリモード変更などは未対応です。詳しくは[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。
 
-MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向けPCM投影データを生成できます。`--pcm-policy best-effort` を指定し、OPMなど他音源を明示的に除外してPCMだけを取り出す場合は `--pcm-only` を併用してください。実行例・対応範囲・容量制限は[PCM相互変換](docs/pcm_interoperability.md)を参照してください。
+MSM6258／SegaPCM入力からも、元のPCM IRを保持してMUC・ADPCM-B向けPCM投影データを生成できます。`--pcm-policy best-effort` を指定し、OPMなど他音源を明示的に除外してPCMだけを取り出す場合は `--pcm-only` を併用してください。`--pcm-profile low`／`ultra_low`でPCMを低レート化して容量を抑えられます。実行例・対応範囲・容量制限は[PCM相互変換](docs/pcm_interoperability.md)を参照してください。
 
-OPMの基本4operator FMもOPNAへ投影してMUCを生成します。OPM＋MSM6258／SegaPCMではFMとPCMを併せて出力できます。未対応効果の省略には `--force`、6chを超える発音chの省略には `--opm-channel-policy omit` を明示してください。[OPM→OPNAの対応範囲](docs/opm_to_opna.md)を参照してください。
+OPMの基本4operator FMもOPNAへ投影してMUCを生成します。OPM＋MSM6258／SegaPCMではFMとPCMを併せて出力できます。`--force`時は6枠を発音ごとに使い回し、同時6音を超える発音や未対応効果は診断付きで省略します。従来の全曲固定6ch選択は `--opm-channel-policy omit` で指定できます。[OPM→OPNAの対応範囲](docs/opm_to_opna.md)を参照してください。
 
 PSGはOPMを経由せず、OPNAのSSGへ直接変換します。対応するノイズ・HWエンベロープも出力します。[PSG→SSGの対応範囲](docs/psg_to_ssg.md)を参照してください。
 
@@ -118,17 +156,18 @@ python scripts/export_mucom.py MSM6258_INPUT_DIRECTORY --outdir outputs/mucom88/
 
 ## 主なオプション
 
-通常のMUCOM88変換の主なオプションは次のとおりです。
+MUCOM88を中心とした主なオプションは次のとおりです。MUCOMSX固有のオプションは[MUCOMSX向け変換](#mucomsx向け変換)と各詳細ドキュメントを参照してください。
 
 | オプション | 内容 |
 |------------|------|
 | `--target mucom` | MUCOM88形式のMUCを生成（既定） |
+| `--target mucomsx` | MUCOMSX向けMUCを生成 |
 | `--outdir DIRECTORY` | 出力先（既定 `outputs/`） |
 | `--normalize-lengths` / `--no-normalize-lengths` | 出力用正規化の有効／無効（既定は有効） |
 | `--normalization-ms MS` | 短い発音の省略閾値と出力時刻の最大移動量（既定8ms、適用条件あり） |
 | `--timing-bound-ms MS` | 正規化を無効にした基準経路の時刻移動上限（既定8ms） |
 | `--force` | 対応範囲内の未対応機能・容量超過PCMを省略し続行。[適用範囲と一覧](docs/mucom_force.md) |
-| `--opm-channel-policy error/omit` | OPMの使用chがFM 6chを超える場合の停止／明示省略（既定error） |
+| `--opm-channel-policy auto/error/omit/dynamic` | OPMの6枠割当。既定autoはforce時に動的割当を使用。[詳細](docs/opm_to_opna.md) |
 | `--no-loops` | 有限反復の生成を無効化 |
 | `--no-song-loop` | VGMヘッダーの曲ループを出力せず、最初の1周で終了 |
 | `--dump-passes` | 中間結果保存の明示指定。MUCOM88経路では指定の有無によらず保存 |
@@ -143,9 +182,10 @@ python scripts/export_mucom.py MSM6258_INPUT_DIRECTORY --outdir outputs/mucom88/
 | `--outdir DIRECTORY` | 一括出力先（必須） |
 | `--muc-only` | MUBコンパイルを行わずMUC・必要なバンクを出力 |
 | `--pcm-only` | MSM6258／SegaPCMを抽出し、他音源の除外を明示 |
+| `--pcm-profile standard/low/ultra_low` | MSM6258／SegaPCM由来のPCMサイズを低レートで抑制（既定standard）。[詳細](docs/pcm_interoperability.md#pcmサイズを抑える設定) |
 | `--pcm-policy best-effort` | 外部PCMのADPCM-B再圧縮を明示的に許容 |
 | `--mucom88 PATH` | MUB生成に使用するコンパイラを指定 |
-| `--timeout SECONDS` | 変換・コンパイルの各段階の上限（既定180秒） |
+| `--timeout SECONDS` | 変換・コンパイルの各段階の上限（既定600秒） |
 
 一括出力でも `--no-song-loop`、正規化の有効／無効と `--normalization-ms` を指定できます。その他のオプションは各ツールのヘルプを参照してください。
 
@@ -182,6 +222,8 @@ python scripts/export_mucom.py INPUT_DIRECTORY \
 - `py/opna_music.py`、`py/musical_structure.py`：発音単位の再構成と反復構造の処理
 - `py/opna_adpcm.py`、`py/opna_adpcm_playback.py`：PCMの元情報と再生位置の解釈
 - `py/opna_muc.py`、`py/mucom_fm.py`、`py/mucom_aux.py`：MUCOM88向け投影とMUC出力
+- `py/mucomsx_conversion.py`、`py/mucomsx_source.py`：MUCOMSX向け投影とソース解析
+- `scripts/mucomsx_runtime.py`：MUCOMSXネイティブコンパイル・検証
 - `scripts/`：一括出力、コンパイル、診断、往復検証、fixture生成
 - `tests/fixtures/public/`：公開可能な自作テスト素材
 - [docs/project_knowledge.md](docs/project_knowledge.md)：変換の原則と制約
@@ -209,6 +251,7 @@ Licensed under the [MIT License](LICENSE).
 | プロジェクト | 本リポジトリでの用途 |
 |---|---|
 | [OPEN MUCOM88／MUCOM88 Windows](https://github.com/onitama/mucom88) | MML仕様、Windowsの実行環境、音色・PCMバンク仕様の参照 |
+| [MUCOMSX — MUCOM88 for MSX](https://toughkiddev.github.io/MUCOMSX/)　| MSX向けMUCOMSXのMML仕様・音源構成の参照、MUC→MUBコンパイルおよび動作検証 |
 | [mucomDotNET](https://github.com/kuma4649/mucomDotNET) | MUC→MUBコンパイル、MUB→VGMによる比較、PCM保持中制御の検証 |
 | [MUCOMVGM](https://github.com/wingghost/MUCOMVGM) | `mucomvgm.exe`を使ったテスト用MUC→VGM生成、およびOPNA制御状態の検証 |
 | [x68k_vgm2mml](docs/integration_baseline.json) | VGM解析、Segment処理、MML構造化などの開発基盤 |

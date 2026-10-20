@@ -14,6 +14,7 @@ import struct
 from types import SimpleNamespace
 
 from mucom_aux import TARGET_CLOCK_HZ, NOTES, _pcm_spelling
+from pcm_profiles import get_profile
 
 DELTA_N = round(Fraction(15625 * 144 * 65536, TARGET_CLOCK_HZ))
 TARGET_RATE = Fraction(TARGET_CLOCK_HZ * DELTA_N, 144 * 65536)
@@ -63,7 +64,7 @@ class TargetPcmProjection:
             start, end, prefix, identity = item
             controls, note = prefix.rsplit(' ', 1)
             ids, events = (row['segment_id'],), tuple(row['source_event_ids'])
-            semantic = ('derived_adpcm_b', row['target_sha256'], DELTA_N,
+            semantic = ('derived_adpcm_b', row['target_sha256'], self.report['target_delta_n'],
                         row['target_pan'], 249, 'independent_target_predictor')
             result.append(Unit('K', start, end, 'pcm', ((start,end,controls,note),),
                 semantic, ids, events, ((end-start,semantic),), ((ids,events),)))
@@ -105,9 +106,9 @@ def _sample(samples, position):
     return round(samples[left] * (1-fraction) + samples[min(left+1,len(samples)-1)] * fraction)
 
 
-def _chunk_boundaries(start, end, loop_start):
+def _chunk_boundaries(start, end, loop_start, *, target_rate=TARGET_RATE):
     # Address capacity, not the inherited PDX eight-second packaging policy.
-    maximum = max(1, int(Fraction(MAX_SAMPLE_BYTES*2-8, 1) / TARGET_RATE * 44100))
+    maximum = max(1, int(Fraction(MAX_SAMPLE_BYTES*2-8, 1) / target_rate * 44100))
     while start < end:
         stop = min(end, start + maximum)
         if loop_start is not None and start < loop_start < stop:
@@ -250,12 +251,15 @@ def _sega_source(raw, outdir, stem, loop_start, *, loop_count=1):
         missing_rom_reads=native.missing_rom_reads)
 
 
-def _project(end, intervals, source_report, loop_start, *, force=False):
+def _project(end, intervals, source_report, loop_start, *, force=False, pcm_profile="standard"):
+    profile = get_profile(pcm_profile)
+    delta_n = round(profile.rate * 144 * 65536 / TARGET_CLOCK_HZ)
+    target_rate = Fraction(TARGET_CLOCK_HZ * delta_n, 144 * 65536)
     if loop_start is not None and not 0 <= loop_start < end:
         raise ProjectionError('PCM song-loop boundary is outside the source timeline')
     header,payload = bytearray(1024),bytearray()
     identities, bindings, items, mapping, segments = {},[],[],[],[]
-    octave,note,detune = _pcm_spelling(SimpleNamespace(rate_num=TARGET_RATE.numerator,rate_den=TARGET_RATE.denominator))
+    octave,note,detune = _pcm_spelling(SimpleNamespace(rate_num=target_rate.numerator,rate_den=target_rate.denominator))
     omissions = list(source_report.get('force_omissions', []))
     candidate_index = 0
     previous_end = 0
@@ -263,13 +267,13 @@ def _project(end, intervals, source_report, loop_start, *, force=False):
         if interval['start'] < previous_end:
             raise ProjectionError('Overlapping MSM6258 intervals require an explicit mix model')
         previous_end = interval['end']
-        for start,stop in _chunk_boundaries(interval['start'],interval['end'],loop_start):
+        for start,stop in _chunk_boundaries(interval['start'],interval['end'],loop_start,target_rate=target_rate):
             chunk_index = candidate_index
             candidate_index += 1
-            count = max(1,round(Fraction(stop-start,44100)*TARGET_RATE))
+            count = max(1,round(Fraction(stop-start,44100)*target_rate))
             pcm,clipped = [],0
             initial = float(Fraction(start-interval['origin'],44100)*interval['rate'])
-            step = float(interval['rate']/TARGET_RATE)
+            step = float(interval['rate']/target_rate)
             for index in range(count):
                 position = initial+index*step
                 value = _sample(interval['samples'],position)
@@ -339,11 +343,15 @@ def _project(end, intervals, source_report, loop_start, *, force=False):
                 source_gate_ids=list(interval['source_ids']),source_event_ids=list(interval['events']),
                 target_slot=slot,target_sha256=digest,target_pan=interval['pan'],
                 valid_samples=count,padding_samples=padding,clipped_samples=clipped,
-                target_rate_num=TARGET_RATE.numerator,target_rate_den=TARGET_RATE.denominator,
-                valid_duration_error_vgmticks=float(Fraction(count*44100,1)/TARGET_RATE-(stop-start)),
+                target_rate_num=target_rate.numerator,target_rate_den=target_rate.denominator,
+                pcm_profile=profile.name,target_delta_n=delta_n,encoded_bytes=len(encoded),
+                valid_duration_error_vgmticks=float(Fraction(count*44100,1)/target_rate-(stop-start)),
                 exhaustion_clipped=interval['exhaustion_clipped']))
-    report = dict(source_report,target_codec='yamaha-adpcm-b-high-first',target_delta_n=DELTA_N,
-        target_rate_num=TARGET_RATE.numerator,target_rate_den=TARGET_RATE.denominator,
+    report = dict(source_report,pcm_profile=profile.name,
+        requested_rate_hz=float(profile.rate),actual_target_rate_hz=float(target_rate),
+        target_bank_total_bytes=len(header)+len(payload) if items else 0,
+        target_codec='yamaha-adpcm-b-high-first',target_delta_n=delta_n,
+        target_rate_num=target_rate.numerator,target_rate_den=target_rate.denominator,
         target_level=249,target_level_gain=249/255,
         target_reset='Independent target predictor0/step127; no native reset claimed',
         source_ir_unchanged=True,normalization_omission_safe=False,mapping=mapping,
@@ -360,12 +368,17 @@ def _project(end, intervals, source_report, loop_start, *, force=False):
         NormalizationView(end,tuple(segments)),report)
 
 
-def project_input(raw, *, kind, outdir, stem, loop_start=None, force=False, loop_count=1):
+def project_input(raw, *, kind, outdir, stem, loop_start=None, force=False, loop_count=1, pcm_profile="standard"):
     """Preserve native passes, then produce derived target PCM bank and K units."""
+    profile = get_profile(pcm_profile)
+    delta_n = round(profile.rate * 144 * 65536 / TARGET_CLOCK_HZ)
+    target_rate = Fraction(TARGET_CLOCK_HZ * delta_n, 144 * 65536)
     root = Path(outdir)
     root.mkdir(parents=True,exist_ok=True)
     capacity_path = root / f'{stem}.pcm_mucom_capacity.json'
-    capacity = dict(schema_version=1, source_kind=kind,
+    capacity = dict(schema_version=1, source_kind=kind, pcm_profile=profile.name,
+        requested_rate_hz=float(profile.rate),target_delta_n=delta_n,
+        actual_target_rate_hz=float(target_rate),
         source_sha256=hashlib.sha256(raw).hexdigest(), status='in_progress', stage='source_analysis',
         limits=dict(sample_slots=32, sample_encoded_bytes=MAX_SAMPLE_BYTES,
                     sample_length_field=65535, alignment_bytes=4,
@@ -386,7 +399,7 @@ def project_input(raw, *, kind, outdir, stem, loop_start=None, force=False, loop
         report['source_traversals_requested']=loop_count
         capacity.update(stage='target_encoding_and_bank_binding')
         save_capacity()
-        projection = _project(end,intervals,report,loop_start,force=force)
+        projection = _project(end,intervals,report,loop_start,force=force,pcm_profile=profile.name)
     except ProjectionError as error:
         capacity.update(status='blocked', detail=str(error), failure=error.diagnostics)
         save_capacity()

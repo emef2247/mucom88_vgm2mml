@@ -22,7 +22,7 @@ do not require extraction. Existing OPNA FM may share
 an external PCM input when extraction is not selected, but simultaneous native
 ADPCM-B and external PCM, or MSM6258 plus SegaPCM, are rejected. Unsupported
 active commands remain errors. Use `--muc-only` on the batch exporter to omit
-MUB compilation. The timeout default remains180 seconds.
+MUB compilation. The batch conversion/compilation timeout defaults to600 seconds per stage.
 
 ## Supported source scope
 
@@ -105,3 +105,37 @@ MUC向け `pcm_mucom.py` とその32枠・256 KiB・整列制約は別である�
 利用できる。その他の未対応エンジンは、明示抽出またはforceによる除外と一覧表示を選べる。
 容量省略は収まらない新規サンプルだけを対象とし、採用済み音色の再利用を残す。
 元のPCM IR、終端・ループ時刻は保持する。詳細は[MUC force](mucom_force.md)。
+
+## PCMサイズを抑える設定
+
+MSM6258／SegaPCMからMUC用のADPCM-Bへ変換するときは、
+`--pcm-profile low`で標準の約半分、`--pcm-profile ultra_low`で約1/4の
+サンプルレートを選択できる。
+直接CLIとバッチの両方で使用でき、既定値`standard`の音声生成は従来どおり。
+
+```sh
+python scripts/export_mucom.py INPUT --outdir outputs/pcm_low \
+  --pcm-policy best-effort --pcm-profile low
+```
+
+`standard`は目標15625 Hz、`low`は目標7812.5 Hz、`ultra_low`は目標3906.25 Hz。
+実際にはターゲットOPNAの
+クロック7987200 Hzで最も近い整数Delta-Nを選び、その実レートで再サンプリング・
+符号化し、MUCの音階／detuneにも同じDelta-Nを使用する。元の音程・再生速度・
+発音時刻を保つための設定であり、音声を遅く再生する設定ではない。
+
+長い波形の符号化ペイロードはlowでおおむね半分、ultra_lowで約1/4になる。4バイト整列・短い音・重複排除・
+容量省略・サンプル分割の違いにより、バンク全体が必ずその比率になるわけではない。
+低レートでは同じサンプルbyte上限に長い時間を収めるため、包装境界も変わり得る。
+32枠・256 KiBペイロード上限・既存のforce省略方針は変更しない。
+バンクが小さくなってもコンパイラや再生環境のPCMバッファへ収まる保証はない。
+
+Source State／Segment／PCM IRは変更しない。既存の線形補間を用い、専用の
+アンチエイリアスフィルタは追加していないため、高域の損失や折り返しがあり得る。
+PCM保持中制御を含め、ネイティブOPNA ADPCM-Bは符号化byteとレートを保持する
+別経路であり、この設定の対象外。`.mucom.json`の`pcm_profile.applicable`で区別する。
+
+`.pcm_mucom_projection.json`、`.pcm_mucom_capacity.json`とmapping CSVに、
+選択profile・目標／実レート・Delta-N・encoded byte数を保存する。source時刻・
+valid/padding samples・duration誤差も併せて確認できる。バンク容量は1024 byteの
+ヘッダーと音声ペイロードを区別する。設定による音質の選択は実際の再生で確認する。

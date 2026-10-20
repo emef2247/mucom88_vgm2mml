@@ -1,0 +1,7 @@
+#title MUCOMSX CH3 PUBLIC
+#driver mucomDotNET
+#voice FMVOICE.DAT
+C0 @1 EXON EX1 v12 t120 o4 l8 cdef
+C1 @1 EX2 v12 o4 l8 egab
+C2 @1 EX3 v12 o3 l8 gbag
+C3 @1 EX4 v12 o3 l8 cgeg

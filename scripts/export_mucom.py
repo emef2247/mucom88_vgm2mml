@@ -23,6 +23,20 @@ def compile_muc(muc, mub, **kwargs):
     return native_compile(muc, mub, **kwargs)
 
 
+def compile_mucomsx(muc, mub, *, runtime_options, timeout, log_path):
+    from mucomsx_runtime import run_job, validate_artifacts
+    options = dict(runtime_options, timeout=timeout)
+    job = log_path.parent / 'mucomsx'
+    report = run_job(muc, job, compile_only=True, **options)
+    log_path.write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    if report['status'] != 'passed':
+        raise RuntimeError('MUCOMSX ' + report.get('failed_stage', 'compilation') + ': '
+                           + report.get('detail', 'compilation failed'))
+    generated = job / 'artifacts' / 'CHECK.MUB'
+    validate_artifacts({'CHECK.MUB': generated.read_bytes()}, compile_only=True)
+    shutil.copyfile(generated, mub)
+
+
 def _text(value):
     return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else (value or '')
 
@@ -65,9 +79,37 @@ def _dependencies(muc):
     return names
 
 
-def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song_loop=True,
+def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=600, song_loop=True,
               normalize_lengths=True, normalization_ms=8.0, pcm_only=False, pcm_policy='strict', force=False,
-              opm_channel_policy='error'):
+              opm_channel_policy='auto', pcm_profile='standard', target='mucom',
+              opll_rhythm='native', psg_enhance_cents=None, runtime_profile=None):
+    if target not in ('mucom','mucomsx'):
+        raise ValueError('Batch target must be mucom or mucomsx')
+    if opll_rhythm not in ('native','layered'):
+        raise ValueError('OPLL rhythm routing must be native or layered')
+    if target!='mucomsx' and (opll_rhythm!='native' or psg_enhance_cents is not None):
+        raise ValueError('OPLL rhythm routing and PSG enhancement require --target mucomsx')
+    if psg_enhance_cents is not None:
+        import math
+        if not math.isfinite(psg_enhance_cents) or not -100 <= psg_enhance_cents <= 100:
+            raise ValueError('PSG enhancement detune must be in -100..100 cents')
+    runtime_options = None
+    if runtime_profile is not None and (target!='mucomsx' or muc_only):
+        raise ValueError('--runtime-profile requires --target mucomsx without --muc-only')
+    if target=='mucomsx':
+        if mucom88 is not None or pcm_only or pcm_policy!='strict' or pcm_profile!='standard' or opm_channel_policy!='auto':
+            raise ValueError('MUCOMSX export does not support MUCOM88 compiler, PCM or OPM policy options')
+        if not muc_only:
+            from mucomsx_runtime import load_profile
+            profile = Path(runtime_profile) if runtime_profile is not None else ROOT / '.tools/mucomsx-runtime.json'
+            if not profile.is_file():
+                raise ValueError('MUCOMSX MUB compilation requires a local --runtime-profile '
+                                 '(default: .tools/mucomsx-runtime.json); use --muc-only for MUC output')
+            runtime_options = load_profile(profile)
+            if not runtime_options.get('boot_disk') or not Path(runtime_options['boot_disk']).is_file():
+                raise ValueError('MUCOMSX runtime profile requires an existing local boot_disk')
+    from pcm_profiles import get_profile
+    get_profile(pcm_profile)
     normalization_samples(normalization_ms)
     source, output = Path(source).resolve(), Path(output).resolve()
     if timeout <= 0:
@@ -127,11 +169,16 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
             conversion_log = run_folder / 'conversion.log'
             row['conversion_log'] = conversion_log.relative_to(output).as_posix()
             command = [sys.executable, str(ROOT / 'vgm2mml.py'), str(path),
-                       '--outdir', str(run_folder), '--target', 'mucom', '--dump-passes',
+                       '--outdir', str(run_folder), '--target', target, '--dump-passes',
                        '--normalize-lengths' if normalize_lengths else '--no-normalize-lengths',
                        '--normalization-ms', str(normalization_ms)]
-            command.extend(['--pcm-policy',pcm_policy])
-            command.extend(('--opm-channel-policy',opm_channel_policy))
+            if target=='mucom':
+                command.extend(['--pcm-policy',pcm_policy,'--pcm-profile',pcm_profile])
+                command.extend(('--opm-channel-policy',opm_channel_policy))
+            if target=='mucomsx':
+                if opll_rhythm!='native':command.extend(('--opll-rhythm',opll_rhythm))
+                if psg_enhance_cents is not None:
+                    command.extend(('--psg-enhance-cents',str(psg_enhance_cents)))
             if pcm_only: command.append('--pcm-only')
             if force: command.append('--force')
             if not song_loop:
@@ -170,7 +217,11 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
                 compilation_log = run_folder / 'compilation.log'
                 row['compilation_log'] = compilation_log.relative_to(output).as_posix()
                 try:
-                    compile_muc(muc, mub, mucom88=mucom88, timeout=timeout, log_path=compilation_log)
+                    if target=='mucomsx':
+                        compile_mucomsx(muc, mub, runtime_options=runtime_options,
+                                        timeout=timeout, log_path=compilation_log)
+                    else:
+                        compile_muc(muc, mub, mucom88=mucom88, timeout=timeout, log_path=compilation_log)
                     if not mub.is_file() or not mub.stat().st_size:
                         raise RuntimeError('Compiler produced no nonempty MUB')
                 except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
@@ -184,7 +235,7 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
             row['detail'] = f'{stage} timed out after {timeout} seconds'
             if stage=='conversion' and run_folder is not None:
                 try:
-                    snapshot=json.loads((run_folder/(path.stem+'.mucom.json')).read_text(encoding='utf-8'))
+                    snapshot=json.loads((run_folder/(path.stem+('.mucomsx.json' if target=='mucomsx' else '.mucom.json'))).read_text(encoding='utf-8'))
                     if snapshot.get('stage'):
                         row['detail']+='; MUC stage: '+str(snapshot['stage'])
                 except (OSError,ValueError,TypeError):
@@ -197,7 +248,7 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
             try:
                 report = run_folder / 'report.txt'
                 write_export_report(report, row)
-                if force or opm_channel_policy=='omit':
+                if target=='mucom' and (force or opm_channel_policy=='omit'):
                     from mucom_force import console_lines
                     lines=console_lines(run_folder,path.stem)
                     if lines:
@@ -216,7 +267,7 @@ def run_batch(source, output, *, mucom88=None, muc_only=False, timeout=180, song
         if row['status'].endswith('_failed') and row['report']:
             message+='; report='+str(output/row['report'])
         print(message,flush=True)
-        if (force or opm_channel_policy=='omit') and run_folder is not None:
+        if target=='mucom' and (force or opm_channel_policy=='omit') and run_folder is not None:
             try:
                 from mucom_force import console_lines
                 for line in console_lines(run_folder,path.stem):
@@ -237,12 +288,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path, help='VGM/VGZ file or directory to scan recursively')
     parser.add_argument('--outdir', type=Path, required=True, help='Separate output tree')
+    parser.add_argument('--target', choices=('mucom','mucomsx'), default='mucom',
+                        help='Musical MUC/MUB target (default: mucom)')
+    parser.add_argument('--runtime-profile', type=Path,
+                        help='MUCOMSX local DOS/openMSX profile (default: .tools/mucomsx-runtime.json)')
+    parser.add_argument('--opll-rhythm', choices=('native','layered'), default='native',
+                        help='MUCOMSX only: native OPLL percussion, optionally doubled by OPNA rhythm')
+    parser.add_argument('--psg-enhance-cents', type=float,
+                        help='MUCOMSX only: add an OPNA SSG layer detuned by -100..100 cents')
     parser.add_argument('--mucom88', type=Path, help='Native unattended MUCOM88 compiler')
     parser.add_argument('--muc-only', action='store_true', help='MUC export without MUB compilation')
     parser.add_argument('--force', action='store_true', help='Continue with explicit target omissions and capacity diagnostics')
-    parser.add_argument('--opm-channel-policy', choices=('error','omit'), default='error',
-                        help='OPM8 to OPNA6: reject or explicitly omit excess active channels')
+    parser.add_argument('--opm-channel-policy', choices=('auto','error','omit','dynamic'), default='auto',
+                        help='OPM8 to OPNA6: auto uses dynamic six-voice allocation with force; error/omit retain fixed policy')
     parser.add_argument('--pcm-only', action='store_true', help='Explicit external PCM extraction; other engines excluded')
+    parser.add_argument('--pcm-profile', choices=('standard','low','ultra_low'), default='standard',
+                        help='Derived MSM6258/SegaPCM PCM rate: standard, half-rate low or quarter-rate ultra_low')
     parser.add_argument('--pcm-policy', choices=('strict','best-effort'), default='strict')
     parser.add_argument('--no-song-loop', action='store_true', help='Emit the first source traversal without a song loop')
     normalization = parser.add_mutually_exclusive_group()
@@ -253,14 +314,26 @@ def main():
     parser.set_defaults(normalize_lengths=True)
     parser.add_argument('--normalization-ms', type=float, default=8.0,
                         help='Output normalization bound in milliseconds (default: 8)')
-    parser.add_argument('--timeout', type=positive, default=180, help='Seconds per conversion/compilation stage')
+    parser.add_argument('--timeout', type=positive, default=600, help='Seconds per conversion/compilation stage (default: 600)')
     args = parser.parse_args()
+    if args.target=='mucomsx':
+        unsupported={'--mucom88','--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
+        requested=sorted({flag for option in sys.argv[1:] for flag in unsupported
+                          if flag.startswith(option.split('=',1)[0])})
+        if requested:
+            parser.error('--target mucomsx does not support '+', '.join(requested))
+    if args.target!='mucomsx' and any(
+            option.split('=',1)[0] in ('--opll-rhythm','--psg-enhance-cents')
+            for option in sys.argv[1:]):
+        parser.error('--opll-rhythm and --psg-enhance-cents require --target mucomsx')
     try:
         rows = run_batch(args.input, args.outdir, mucom88=args.mucom88,
                          muc_only=args.muc_only, timeout=args.timeout, song_loop=not args.no_song_loop,
                          normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
-                         pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force,
-                         opm_channel_policy=args.opm_channel_policy)
+                         pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force,pcm_profile=args.pcm_profile,
+                         opm_channel_policy=args.opm_channel_policy,target=args.target,
+                         opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,
+                         runtime_profile=args.runtime_profile)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     expected = 'muc_only' if args.muc_only else 'success'

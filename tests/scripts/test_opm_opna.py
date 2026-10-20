@@ -66,7 +66,7 @@ class OpmOpnaTests(unittest.TestCase):
             root=Path(folder);source=root/'SEVEN.vgm';source.write_bytes(vgm(data))
             native=analyze(source,root/'source')
             for force in (False,True):
-                with self.assertRaisesRegex(ValueError,'opm-channel-policy omit'):project(native,force=force)
+                with self.assertRaisesRegex(ValueError,'opm-channel-policy omit'):project(native,force=force,channel_policy='error')
             report=convert_vgm(source,root/'out',opm_channel_policy='omit',song_loop=False)
             self.assertEqual(report['musical_note_units'],6)
             self.assertEqual(report['opm_projection']['omitted_source_channels'],[6])

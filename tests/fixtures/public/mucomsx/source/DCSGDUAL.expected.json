@@ -1,0 +1,33 @@
+{
+  "origin": "Authored synthetic source, no game-derived content",
+  "clock_hz": 2000000,
+  "dual_chip": true,
+  "end_sample": 6000,
+  "native_source_channels": 8,
+  "target_parts": [
+    "MSXD",
+    "MSXE",
+    "MSXF",
+    "D",
+    "E",
+    "F"
+  ],
+  "first_tone_periods": [
+    220,
+    280,
+    350,
+    222,
+    282,
+    352
+  ],
+  "first_projected_virtual_2mhz_periods": [
+    440,
+    560,
+    700,
+    444,
+    564,
+    704
+  ],
+  "noise_control": 5,
+  "projection_exact": false
+}
