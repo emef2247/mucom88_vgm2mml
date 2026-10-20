@@ -427,7 +427,9 @@ def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,no
 
 def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 timing_bound_ms=8.0,loops=True,song_loop=True,normalize_lengths=True,normalization_ms=8.0,
-                pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="error"):
+                pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="auto",pcm_profile="standard"):
+    from pcm_profiles import get_profile
+    profile=get_profile(pcm_profile)
     source,output=Path(input_path),Path(outdir)
     output.mkdir(parents=True,exist_ok=True)
     passes=Path(diagnostics_outdir) if diagnostics_outdir else output
@@ -436,6 +438,8 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
     report=dict(schema_version=2,target='mucom88',status='analyzing',source=str(source),
                 source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
                 native_target_clock_hz=TARGET_CLOCK_HZ,source_passes=str(passes),diagnostics=[],
+                pcm_profile=dict(requested=profile.name,applicable=False,
+                    reason='Only derived MSM6258/SegaPCM ADPCM-B uses the profile; native OPNA ADPCM bytes/rate are retained'),
                 tracks={},fm_projection=[],fm_initial_pitch_resolution=[],pcm_bindings=[],stage_timings={},limits=[
                 'Source State/Segments are intact; MUC timing is target-only.',
                 'Native startup latency, envelope/acoustic identity and listening are separate checks.'])
@@ -553,12 +557,16 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             progress('external_pcm_projection')
             from pcm_mucom import project_input
             interop=project_input(raw,kind=interop_kind,outdir=passes,stem=stem,loop_start=loop_start,
-                                  force=force,loop_count=source_loop_count)
+                                  force=force,loop_count=source_loop_count,pcm_profile=profile.name)
             if (interop.normalization_view.source_end_vgmticks!=end or
                     interop.report['source_loop_vgmticks']!=loop_start):
                 raise ConversionError('FM/PSG and external PCM must share replay end and loop boundary')
             force_omissions.extend(interop.report.get('force_omissions',()))
             report['pcm_interop']=interop.report
+            report['pcm_profile'].update(applicable=True,reason='Derived external PCM target resampling',
+                actual_target_rate_hz=interop.report['actual_target_rate_hz'],
+                bank_payload_bytes=interop.report['target_bank_payload_bytes'],
+                bank_total_bytes=interop.report['target_bank_total_bytes'])
             if pcm_only:
                 from opna import OpnaAnalysis
                 analysis=OpnaAnalysis((),(),end,False,(),())
@@ -577,7 +585,13 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 from opm_opna import project as project_opm
                 native_opm=build_opm(opm_metadata['csv_path'],end_vgmticks=end)
                 projection=project_opm(native_opm,channel_policy=opm_channel_policy,
-                    force=force,omissions=force_omissions)
+                    force=force,omissions=force_omissions,loop_start=loop_start)
+                allocation=projection.report.get('dynamic_allocation')
+                if allocation and not allocation['loop']['stable']:
+                    report['song_loop'].update(enabled=False,target_start_samples=None,
+                        omission_reason='Dynamic FM owner mapping is not periodic; finite shared traversal retained')
+                    report['diagnostics'].append(report['song_loop']['omission_reason'])
+                    loop_start=None
                 projection.dump(passes,stem)
                 analysis=projection.analysis;fm_origin='opm_opna.target'
                 report['opm_projection']=projection.report

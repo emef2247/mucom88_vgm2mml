@@ -1,0 +1,20 @@
+{
+  "scope": "Authored ordinary SSG MUC through actual MUCOMSX COMs; not VGM converter or listening regression",
+  "tests": 8,
+  "compiler_mub_bytes": 302,
+  "mub_full_bytes_equal": true,
+  "mub_sha256": "3d0fd85fe7035ead23a14fb49d6d143a39d45bdf06620420232eeade7417a8e1",
+  "mub_magic": "MUB8",
+  "vgm_bytes": 1145,
+  "vgm_version_hex": "0x151",
+  "vgm_total_samples": 220928,
+  "vgm_opna_clock": 8000000,
+  "vgm_opna_register_writes": 200,
+  "other_patterns": "Staged only; SCC3, CH3 and MSX PSG are not yet executed",
+  "date": "2026-10-19",
+  "runtime_archive_sha256": "582a72344d30982f79b61135f82746813c8b739ad7a4c00c7cb5530d3f4a42d6",
+  "source_sha256": "731a4f9f80bed014b330b1fdcced5d3323113e8c2fc2d9bc2b7e28bfb6a32986",
+  "source_mounted_as": "TEST.MUC",
+  "private_songs": "not executed",
+  "listening": "not performed"
+}

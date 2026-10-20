@@ -608,8 +608,8 @@ def main(argv=None):
             sys.argv=previous
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('vgm',help='Input supported VGM/VGZ')
-    parser.add_argument('--target',choices=('mucom','mdx','mgs'),default='mucom',
-                        help='mucom (default); inherited compatibility routes require an explicit target')
+    parser.add_argument('--target',choices=('mucom','mucomsx','mdx','mgs'),default='mucom',
+                        help='mucom (default), mucomsx MSX musical MUC, or explicit inherited compatibility target')
     parser.add_argument('--outdir',default='outputs')
     parser.add_argument('--dump-passes',action='store_true',help='source/music/structure dumps are always retained')
     parser.add_argument('--diagnostics-outdir')
@@ -624,35 +624,55 @@ def main(argv=None):
     parser.add_argument('--normalization-ms',type=float,default=8.0,
                         help='Output normalization bound in milliseconds (default: 8)')
     parser.add_argument('--force',action='store_true',help='Omit explicitly unsupported target effects and excess PCM; record every omission')
-    parser.add_argument('--opm-channel-policy',choices=('error','omit'),default='error',
-                        help='OPM8 to OPNA6: error by default, or explicitly omit excess active channels')
+    parser.add_argument('--opm-channel-policy',choices=('auto','error','omit','dynamic'),default='auto',
+                        help='OPM8 to OPNA6: auto uses dynamic six-voice allocation with force; error/omit retain fixed policy')
     parser.add_argument('--pcm-only',action='store_true',help='Explicitly extract MSM6258/SegaPCM; retain source evidence, exclude other engines')
+    parser.add_argument('--pcm-profile',choices=('standard','low','ultra_low'),default='standard',
+                        help='Derived MSM6258/SegaPCM PCM rate: standard, half-rate low or quarter-rate ultra_low')
     parser.add_argument('--pcm-policy',choices=('strict','best-effort'),default='strict',
                         help='External PCM transcoding requires explicit best-effort')
     parser.add_argument('--no-loops',action='store_true',help='expand finite phrase repetitions')
     parser.add_argument('--no-song-loop',action='store_true',help='emit the first source traversal without a song loop')
+    parser.add_argument('--opll-rhythm',choices=('native','layered'),default='native',
+                        help='MUCOMSX: native OPLL percussion, optionally also layer OPNA rhythm')
+    parser.add_argument('--psg-enhance-cents',type=float,
+                        help='MUCOMSX: add an OPNA SSG copy of native PSG at the specified detune (e.g. -11)')
     args=parser.parse_args(arguments)
-    from opna_muc import ConversionError,convert_vgm
+    if args.target=='mucomsx':
+        unsupported={'--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
+        requested=sorted({flag for option in arguments for flag in unsupported
+                          if flag.startswith(option.split('=',1)[0])})
+        if requested:
+            parser.error('--target mucomsx does not support '+', '.join(requested))
+        from mucomsx_conversion import ConversionError,convert_vgm
+    else:
+        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None:
+            parser.error('Native MSX enhancement options require --target mucomsx')
+        from opna_muc import ConversionError,convert_vgm
+    options=dict(dump_passes=args.dump_passes,diagnostics_outdir=args.diagnostics_outdir,
+                 timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
+                 song_loop=not args.no_song_loop,normalize_lengths=args.normalize_lengths,
+                 normalization_ms=args.normalization_ms,force=args.force)
+    if args.target=='mucomsx':
+        options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents)
+    if args.target=='mucom':
+        options.update(pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
+                       pcm_profile=args.pcm_profile,opm_channel_policy=args.opm_channel_policy)
     try:
-        result=convert_vgm(args.vgm,args.outdir,dump_passes=args.dump_passes,
-                           diagnostics_outdir=args.diagnostics_outdir,
-                           timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
-                           song_loop=not args.no_song_loop,
-                           normalize_lengths=args.normalize_lengths,normalization_ms=args.normalization_ms,
-                           pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force,
-                           opm_channel_policy=args.opm_channel_policy)
+        result=convert_vgm(args.vgm,args.outdir,**options)
     except (ConversionError,OSError) as error:
-        if args.force or args.opm_channel_policy=='omit':
+        if args.target=='mucom' and (args.force or args.opm_channel_policy=='omit'):
             from mucom_force import console_lines
             for line in console_lines(args.diagnostics_outdir or args.outdir,Path(args.vgm).stem):
                 print(line)
         parser.exit(1,f'MUC conversion failed: {error}\n')
-    if args.force or args.opm_channel_policy=='omit':
+    if args.target=='mucom' and (args.force or args.opm_channel_policy=='omit'):
         from mucom_force import console_lines
         for line in console_lines(args.diagnostics_outdir or args.outdir,Path(args.vgm).stem):
             print(line)
     print('MUC: '+result['muc_path'])
-    print(f"Musical FM gates: {result['musical_note_units']}; Timer-B: {result['timing']['timer_b']}")
+    label='Musical source units' if args.target=='mucomsx' else 'Musical FM gates'
+    print(f"{label}: {result['musical_note_units']}; Timer-B: {result['timing']['timer_b']}")
     return 0
 
 

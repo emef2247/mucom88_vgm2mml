@@ -1,0 +1,51 @@
+{
+  "schema": "mucomsx-profile-v1",
+  "release": "v1.0-stable",
+  "archive": "MucoMSX_261016.zip",
+  "archive_sha256": "582a72344d30982f79b61135f82746813c8b739ad7a4c00c7cb5530d3f4a42d6",
+  "upstream": "https://github.com/ToughkidDev/MUCOMSX/releases/tag/v1.0-stable",
+  "documentation_revision": "75f75f0c3f9044f49c79f7f7224f22c42c443e26",
+  "runtime": {
+    "os": "MSX-DOS2 or compatible Nextor",
+    "mapper_minimum_kib": 512,
+    "host_native_executable": false
+  },
+  "limits": {
+    "muc_input_bytes": 65536,
+    "editor_normalized_bytes": 60000,
+    "music_data_bytes": 122880,
+    "opna_page_stream_bytes": 59546,
+    "msx_page_stream_bytes": 59106,
+    "line_bytes_excluding_crlf": 1023,
+    "used_fm_voices": 32,
+    "pcm_capacity": "Separate chip/bank limit; not expanded by music DATA mapper banks"
+  },
+  "containers": {
+    "MUB8": "Legacy OPNA",
+    "muPb0100": "Supported first-OPNA extended/large layout",
+    "msPb0100": "MUCOMSX MSX-MUSIC/internal PSG profile",
+    "msPb0101": "MUCOMSX SCC-family SSG extension; capabilities 2 or 3; not upstream muPb jump fields"
+  },
+  "capabilities": {
+    "opna_fm": 6,
+    "opna_ssg": 3,
+    "opna_adpcm_b": 1,
+    "ch3_operator_pages": true,
+    "ch3_shared_parameters": [
+      "algorithm",
+      "feedback",
+      "pan",
+      "hardware_lfo"
+    ],
+    "msx_music_melodic_parts": 6,
+    "msx_music_rhythm": true,
+    "msx_psg_parts": 3,
+    "scc_ssg_extension_parts": 3,
+    "native_scc_five_independent_parts": false,
+    "automatic_scc_fm_enhancement": false,
+    "additional_opm_chip": false,
+    "mub_export": true,
+    "vgm_export": true
+  },
+  "implementation_status": "Tooling profile. Converter generation for MUCOMSX-only features is not yet connected."
+}

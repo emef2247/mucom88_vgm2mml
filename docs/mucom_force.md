@@ -15,7 +15,8 @@ python scripts/export_mucom.py INPUT_DIRECTORY --outdir outputs/mucom88/forced \
 - [OPMの基本FM投影](opm_to_opna.md)では、DT2・ハードウェアLFO・CSMの効果を省略し、
   ノイズoperatorの抑制、pan 0のTL消音近似、範囲外音程の端点近似を記録する。
   ネイティブOPNA FMも発音する入力はOPNAを優先し、OPM FMを省略する。
-  余剰ch省略はforceだけでは許可せず、`--opm-channel-policy omit`を必要とする。
+  既定autoではforceで同時6音の動的割当を使用する。超過発音と再利用時のrelease切断可能性を診断する。
+  `--opm-channel-policy omit`は従来の全曲固定6ch省略。詳細は[OPM→OPNA](opm_to_opna.md)。
 - 外部PSGの未対応種類・構成はPSG部全体を省略する。ネイティブOPNA SSGと
   DEFが競合する場合も、外部PSGを省略してネイティブSSGを優先する。
 - SSGの未対応共有エンベロープ競合は競合区間を消音する。

@@ -8,8 +8,8 @@ vgm-convを実行せず、独立したレジスタ・音程投影を行う。
 ## 実行例
 
 ```sh
-python vgm2mml.py input.vgm --outdir outputs/opm --force --opm-channel-policy omit
-python scripts/export_mucom.py INPUT --outdir outputs/opm --force --opm-channel-policy omit --pcm-policy best-effort
+python vgm2mml.py input.vgm --outdir outputs/opm --force
+python scripts/export_mucom.py INPUT --outdir outputs/opm --force --pcm-policy best-effort
 ```
 
 基本FMが対応範囲内ならforceは不要。外部PCMには`--pcm-policy best-effort`が必要。
@@ -18,9 +18,10 @@ python scripts/export_mucom.py INPUT --outdir outputs/opm --force --opm-channel-
 
 ## 対応と損失
 
-- primary YM2151の使用chを全曲で固定割当する。Key-On要求のあるchを使用chとする。
-  既定は7ch以上で停止。`--opm-channel-policy omit`は使用chの先頭6chを元ch順に採用し、
-  残りを省略する。時間区間ごとのch使い回しはしない。forceだけでは余剰chを省略しない。
+- チャンネル方針の既定は`auto`。全曲の使用chが6本以内なら従来の固定割当を維持する。
+  7本以上で`--force`があると`dynamic`を選び、同時にKey maskが非ゼロの発音を最大6枠へ割り当てる。
+  forceなしのauto／明示`error`は従来どおり全曲7ch以上で停止する。
+  明示`omit`は使用chの先頭6chを元ch順に固定採用し、残りを全曲で省略する。
 - algorithm・feedback、operatorレジスタ、部分Key操作、保持中の音程・TL等を投影する。
   レジスタbank順と論理Key mask順を区別する。DT1・EGの物理速度や音響一致は未検証。
 - KC/KFと元OPMクロックから公称周波数を求め、7,987,200 HzのOPNAのFNUM/BLOCKへ
@@ -38,6 +39,31 @@ python scripts/export_mucom.py INPUT --outdir outputs/opm --force --opm-channel-
 - 未観測panでのKey-On、不完全な音色、入力破損、既存のPCM・timing・ループ検証、
   バンク／コンパイラ制限を一律に回避する機能ではない。
 
+## 動的な6枠割当
+
+`--force`だけで8本の元chを時間区間ごとに使い回せる。常時6音に制限するのは
+非ゼロKey maskの発音であり、release tailを含む実際の可聴音数の判定ではない。
+`--opm-channel-policy dynamic`で明示選択もできるが、発音省略や別chへの枠再利用による
+release切断の可能性がある場合はforceが必要となる。
+
+- Key maskが0から非ゼロになると枠を取得し、部分Key変更・保持中のpitch/TL等は同じ枠で継続する。
+- 空き枠がないとforceで新しい発音全体を省略する。既に採用した6音を優先し、完全Key-Offまで
+  途中復帰しない。次の新しい発音は再度割当対象になる。音量等による音楽的な優先順位は未導入。
+- Key-Offで枠を再利用可能にするが、所有者は再利用まで保持し、release中の制御も投影する。
+  別chが取得すると`truncate_possible_release`を記録する。Key-Offを無音の証明にはしない。
+- 枠取得時は最新の元音色全項目・AL/FB・pan・pitchと中立SSG-EGを復元する。
+  復元writeはcacheで省略せず、前の所有者の未知パラメータを引き継がない。不完全音色は停止する。
+  割当外で設定されたDT2・LFO・noiseもsnapshotから再評価し、force省略を記録する。
+- 同一sample内の元write順は維持する。第7声の直後にKey-Offがある一時競合も、順序を変更せず
+  `opm_same_sample_order_capacity`として保守的に発音全体を省略する場合がある。
+- 曲ループ開始とEOFで枠所有者・Key mask・省略中chの一致を検証する。
+  一致しない場合は通常停止し、force時は`omit_song_loop`を記録してFM／SSG／PCMを共通の
+  有限タイムラインで出力する。元ループ情報・解析済み反復・PCM IRは保持する。
+  L位置で一律にリセットしたり、保持音のKey-Onを捏造したりしない。既存の他のループ検証は維持する。
+
+この変更はtarget projectionに限定し、元OPM State/Segmentsは変更しない。
+固定割当の既存結果を使いたい場合は`--opm-channel-policy error`または`omit`を指定する。
+
 ## 中間結果
 
 ネイティブOPMの`<stem>_trace.opm_regs.csv`／`<stem>_trace.opm.csv`と
@@ -49,7 +75,8 @@ python scripts/export_mucom.py INPUT --outdir outputs/opm --force --opm-channel-
 | `<stem>.opm_opna.target.writes.csv` | target write ID・順序、OPM occurrence/original event ID・元時刻・元レジスタ、投影先、理由、音程誤差 |
 | `<stem>.opm_opna.target.state.csv` / `.segments.csv` | 明示的に投影したOPNA State/Segments |
 | `<stem>.opm_opna.target.music.csv` | 投影されたFM発音全体と内部制御 |
-| `<stem>.opm_opna.json` | クロック・ch割当・reset仮定・timer・省略内容 |
+| `<stem>.opm_opna.json` | 要求／実効方針、クロック・ch割当・reset仮定・timer・省略内容。動的ch mapはEOFの所有関係で、全曲固定対応ではない |
+| `<stem>.opm_opna.allocation.csv` | 動的な取得・再利用・Key-Off・省略開始／終了、元ch・派生gate ID・時刻・event ID・target枠・旧所有者 |
 | `<stem>.mucom.force.csv` / `.json` | forceまたは明示ch省略の一覧（元の識別子・時刻・理由） |
 
 以降は既存のMUC出力正規化・構造化とその中間結果へ接続する。ターゲット初期化も

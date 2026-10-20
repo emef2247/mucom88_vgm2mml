@@ -1,0 +1,6 @@
+#title MUCOMSX SCC THREE PARTS
+#driver mucomDotNET
+#SSGExtend On
+D @0 @I8 v15 t120 o4 l8 cdef
+E @0 @I9 v12 o3 l4 ce
+F @0 @I0 v10 o3 l4 gc

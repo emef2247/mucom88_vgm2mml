@@ -278,3 +278,26 @@ Other packaged dependencies retain their own terms. This local subprocess use
 does not change the MIT license of the project-authored converter and fixtures.
 Thanks to kuma4649 for the maintained compiler, driver and published MML/source
 references. This profile is distinct from the older Windows260407 bundle.
+
+## MUCOMSX external tool profile
+
+The optional setup downloads the unmodified official MUCOMSX runtime release
+from [ToughkidDev/MUCOMSX](https://github.com/ToughkidDev/MUCOMSX/releases/tag/v1.0-stable)
+into ignored local tooling. No COM executable, factory DAT, ROM or DOS system
+file is vendored here. The runtime's NOTICE.txt and full LICENSES directory are
+preserved in installations and staged DOS jobs. MUCOM88-derived components
+retain the upstream CC BY-NC-SA 4.0 terms; other components carry their own BSD
+notices or stated terms. The project's license does not relicense those tools.
+See the bundled notices for ToughkidCST's MSX adaptations, Yuzo Koshiro / onitama,
+MUCOM88em, VGMPlay MSX/neonlib and ymfm attribution. This profile does not import
+MUCOMSX compiler/driver implementation into this project's Python converter.
+
+## ymfm reconstructed YM2413 presets
+
+`py/mucomsx_opll.py` uses the reconstructed YM2413 ROM preset parameter table
+from ymfm (`src/ymfm_opl.cpp`, revision
+`81aec25ccbb98f4873a255f7551ac4dadac59b4a`). The full BSD-3-Clause copyright,
+conditions and disclaimer are retained in that module. The upstream credits
+Aaron Giles and the preset reconstruction by David Viens and Hubert Lamontagne.
+Source: https://github.com/aaronsgiles/ymfm
+This notice does not apply to the deferred Nuked-OPLL-based mapping proposal.

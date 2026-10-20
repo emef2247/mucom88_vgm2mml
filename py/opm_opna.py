@@ -50,6 +50,13 @@ class Projection:
         with (out/(prefix+'.writes.csv')).open('w',encoding='utf-8',newline='') as stream:
             writer=csv.DictWriter(stream,fieldnames=fields,lineterminator='\n')
             writer.writeheader();writer.writerows(self.writes)
+        allocation=self.report.get('dynamic_allocation')
+        if allocation is not None:
+            rows=allocation['rows']
+            fields=tuple(dict.fromkeys(k for row in rows for k in row)) or ('action',)
+            with (out/(stem+'.opm_opna.allocation.csv')).open('w',encoding='utf-8',newline='') as stream:
+                writer=csv.DictWriter(stream,fieldnames=fields,lineterminator='\n')
+                writer.writeheader();writer.writerows(rows)
         dump_analysis(self.analysis,state_csv=out/(prefix+'.state.csv'),
                       segments_csv=out/(prefix+'.segments.csv'))
         (out/(stem+'.opm_opna.json')).write_text(json.dumps(self.report,indent=2)+'\n',encoding='utf-8')
@@ -79,42 +86,51 @@ def _target_analysis(writes, end):
     return OpnaAnalysis(tuple(events),tuple(segments),end,False,(),())
 
 
-def project(native, *, channel_policy='error', force=False, omissions=None):
+def project(native, *, channel_policy='auto', force=False, omissions=None, loop_start=None):
     """Project basic4OP FM and diagnose every explicit unsupported effect.
 
-    Fixed whole-song channel allocation; no stealing. Force neutralizes LFO,
+    Auto uses dynamic six-slot allocation under force for >6 source channels.
+    Explicit error/omit retain fixed whole-song allocation. Force neutralizes LFO,
     omits DT2, and mutes the unsupported noise operator. Real pan0 uses a
     diagnosed centered/all-operator-TL mute approximation, retaining Key state.
     """
-    if channel_policy not in ('error','omit'):
-        raise ValueError('OPM channel policy must be error or omit')
+    if channel_policy not in ('auto','error','omit','dynamic'):
+        raise ValueError('OPM channel policy must be auto, error, omit or dynamic')
+    requested_policy=channel_policy
     omissions = [] if omissions is None else omissions
     start_omissions=len(omissions)
     active=sorted({e.ch for e in native.events if not e.chip_instance and e.state.key_mask})
+    if channel_policy=='auto':channel_policy='dynamic' if force and len(active)>6 else 'error'
+    dynamic=channel_policy=='dynamic'
     if len(active)>6 and channel_policy=='error':
-        raise ValueError('OPM uses more than6 FM channels; select --opm-channel-policy omit to allow explicit omission')
-    channel_map={ch:index for index,ch in enumerate(active[:6])}
+        raise ValueError('OPM uses more than6 FM channels; use --force for dynamic6-voice allocation or --opm-channel-policy omit for fixed omission')
+    if dynamic:
+        from opm_channel_allocation import DynamicChannels
+        allocator=DynamicChannels(force=force,omissions=omissions,end=native.source_end_vgmticks,loop_start=loop_start)
+        channel_map=allocator.channel_map
+    else:channel_map={ch:index for index,ch in enumerate(active[:6])}
     groups={}
     for event in native.events:groups.setdefault(event.source_event_id,[]).append(event)
     writes=[];cache={};sequences={};pitch_assumptions=[];ignored_timers=[];seen_unsupported=set()
     def omission(s,reason,action,*,bits=None,ch=None,**details):
-        key=(s.source_event_id,reason,ch)
+        key=(s.source_event_id,reason,ch,details.get('source_state_register'))
         if key in seen_unsupported:return
         seen_unsupported.add(key)
         omissions.append(dict(source_chip='OPM',part='FM' if ch is None else 'ABCDEFGH'[ch],
-            register=s.register,bits=bits,action=action,reason=reason,
+            register=details.get('source_state_register',s.register),trigger_source_register=s.register,
+            bits=bits,action=action,reason=reason,
             source_event_ids=[s.source_event_id],source_start_vgmticks=s.vgmticks,
             source_end_vgmticks=s.vgmticks,source_channel=s.ch,chip_instance=s.chip_instance,**details))
-    for ch in active[6:]:
+    for ch in ([] if dynamic else active[6:]):
         affected=[e for e in native.events if not e.chip_instance and e.ch==ch]
         omissions.append(dict(source_chip='OPM',part='ABCDEFGH'[ch],
             action='omit_fm_channel',reason='opm8_to_opna6_channel_capacity',
             source_channel=ch,source_event_ids=list(dict.fromkeys(e.source_event_id for e in affected)),
             source_start_vgmticks=min(e.vgmticks for e in affected),
             source_end_vgmticks=native.source_end_vgmticks,actual=len(active),limit=6,unit='FM channels'))
-    def emit(s,port,reg,data,reason,**audit):
+    def emit(s,port,reg,data,reason,*,force_emit=False,**audit):
         # Never suppress Key requests; paired pitch commits must stay ordered.
-        if reg!=0x28 and not 0xa0<=reg<=0xa6 and cache.get((port,reg))==data:return
+        if not force_emit and reg!=0x28 and not 0xa0<=reg<=0xa6 and cache.get((port,reg))==data:return
         cache[port,reg]=data
         source_id=s.source_event_id if s else None
         sequence=sequences.get(source_id,0);sequences[source_id]=sequence+1
@@ -131,7 +147,7 @@ def project(native, *, channel_policy='error', force=False, omissions=None):
     emit(None,0,0x29,0x80,'target six-channel output enabled')
     emit(None,0,0x22,0,'target LFO neutral; no OPM LFO approximation')
     emit(None,0,0x27,0,'target ordinary FM; no CSM or special frequencies')
-    for target in channel_map.values():
+    for target in (range(6) if dynamic else channel_map.values()):
         port,local=divmod(target,3)
         for bank in range(4):emit(None,port,0x90+4*bank+local,0,'target has no source SSG-EG')
     def tl(s,bank):
@@ -170,12 +186,50 @@ def project(native, *, channel_policy='error', force=False, omissions=None):
         # Shared high latch is overwritten before every low-byte commit.
         emit(s,port,0xa4+local,block<<3 | fnum>>8,'KC/KF to committed FNUM/BLOCK high',**audit)
         emit(s,port,0xa0+local,fnum&255,'KC/KF to committed FNUM/BLOCK low',**audit)
-    for eid,group in sorted(groups.items()):
+    def restore_owner(s):
+        # Never inherit an unobserved parameter from a previous source owner.
+        raw=dict(s.state.channel_registers)
+        required=[0x20+s.ch]+[base+bank*8+s.ch for bank in range(4)
+                              for base in (0x40,0x60,0x80,0xa0,0xc0,0xe0)]
+        if any(reg not in raw for reg in required):
+            raise ValueError('Dynamic FM allocation needs a complete observed source voice')
+        port,local=divmod(channel_map[s.ch],3)
+        emit(s,port,0xb0+local,raw[0x20+s.ch]&63,'dynamic owner full algorithm/feedback restore',force_emit=True)
+        value=pan(s)
+        if value is None:raise ValueError('OPM Key-On has unobserved pan state')
+        emit(s,port,0xb4+local,value,'dynamic owner full pan restore',force_emit=True)
+        for bank in range(4):
+            emit(s,port,0x90+bank*4+local,0,'dynamic owner SSG-EG neutral restore',force_emit=True)
+            for base,target_base in ((0x40,0x30),(0x60,0x40),(0x80,0x50),(0xa0,0x60),(0xc0,0x70),(0xe0,0x80)):
+                reg=base+bank*8+s.ch;data=raw[reg]
+                if base==0xc0 and data&0xc0:
+                    if not force:raise ValueError('Nonzero OPM DT2 is unsupported; use --force')
+                    omission(s,'opm_dt2_not_projected','omit_dt2_bits',bits=0xc0,ch=s.ch,
+                             source_state_register=reg,source_state_data=data)
+                projected=(data&31) if base==0xc0 else tl(s,bank) if base==0x60 else data
+                emit(s,port,target_base+bank*4+local,projected,'dynamic owner full operator restore',
+                     force_emit=True,source_state_register=reg,source_state_data=data)
+        if s.state.noise_enabled:
+            if not force:raise ValueError('OPM noise waveform is unsupported; use --force')
+            omission(s,'opm_noise_not_projected','mute_noise_operator',bits=0x80,ch=s.ch,source_state_register=15)
+        pitch(s)
+    ordered=list(sorted(groups.items()))
+    # A pending same-sample Key-Off cannot be moved ahead of an observed Key-On.
+    releases={}
+    for eid,group in ordered:
+        s=group[0]
+        if not s.chip_instance and s.register==8 and not s.state.key_mask:
+            releases.setdefault(s.vgmticks,[]).append(eid)
+    for eid,group in ordered:
+
         s=group[0];reg,data=s.register,s.data
         if s.chip_instance or s.chip_type!='YM2151':
             if not force:raise ValueError('OPM projection supports one YM2151 instance')
             omission(s,'unsupported_opm_instance_or_variant','omit_opm_write');continue
         if s.clock_hz<=0:raise ValueError('OPM requires a positive source clock')
+        restore=False
+        if dynamic:
+            restore=allocator.before(group,same_sample_release=any(later>eid for later in releases.get(s.vgmticks,())))
         if reg==0x14 and data&0x80:
             if not force:raise ValueError('OPM CSM timer-generated Keys are unsupported; use --force')
             omission(s,'opm_csm_not_projected','omit_effect',bits=0x80)
@@ -195,6 +249,7 @@ def project(native, *, channel_policy='error', force=False, omissions=None):
                 omission(s,'unsupported_opm_shared_register','omit_write')
             continue
         if s.ch not in channel_map:continue
+        if restore:restore_owner(s)
         target=channel_map[s.ch];port,local=divmod(target,3)
         if reg==15:
             if data&0x80:
@@ -224,12 +279,15 @@ def project(native, *, channel_policy='error', force=False, omissions=None):
                 omission(s,'opm_dt2_not_projected','omit_dt2_bits',bits=0xc0,ch=s.ch)
             value=(data&31) if group_base==0xc0 else tl(s,bank) if group_base==0x60 else data
             emit(s,port,target_base+bank*4+local,value,'operator register-bank projection')
+    allocation=allocator.finish() if dynamic else None
     analysis=_target_analysis(writes,native.source_end_vgmticks)
     report=dict(source_origin='native OPM State/Segments',target_origin=TARGET_ORIGIN,
         source_ir_unchanged=True,independent_projection=True,vgm_conv_dependency=False,
         target_clock_hz=TARGET_CLOCK,source_clock_hz=next((e.clock_hz for e in native.events),None),
-        channel_policy=channel_policy,channel_map=channel_map,
-        active_source_channels=active,omitted_source_channels=active[6:],
+        requested_channel_policy=requested_policy,channel_policy=channel_policy,channel_map=dict(channel_map),
+        channel_map_scope='EOF ownership only; see allocation CSV' if dynamic else 'whole-song fixed',
+        dynamic_allocation=allocation,
+        active_source_channels=active,omitted_source_channels=[] if dynamic else active[6:],
         target_write_count=len(writes),target_only_pitch_reset_assumptions=pitch_assumptions,
         source_timer_writes_not_scheduled=ignored_timers,
         omissions=omissions[start_omissions:],

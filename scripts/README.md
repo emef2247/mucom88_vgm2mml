@@ -34,3 +34,15 @@ Normal single-file conversion uses `python vgm2mml.py`; conversion implementatio
 - `experiment_*.py`: retained development experiments; not normal conversion frontends.
 
 For the inherited MDX route, external compiler/player tools and Node dependencies are optional; its PCM output requires the Rust helper's typed MDX assembly and PDX packing modes. Inspect the documented tool arguments and dependency errors before use. The Rust generator has its own README and locked dependencies. Build outputs are ignored.
+
+## MUCOMSX preparation
+
+- `setup_mucomsx.py`: verify/install the pinned official external MSX-DOS runtime set; keep notices and edited-bank protection. Does not download ROM/DOS files or change the default compiler.
+- `prepare_mucomsx.py`: stage an authored tooling pattern or existing MUC as a fresh DOS 8.3 job with owned dependencies and explicit staged-only status.
+
+See [MUCOMSX setup and scope](../docs/mucomsx_setup.md).
+
+- MUCOMSX batch MUB: `python scripts/export_mucom.py INPUT_DIRECTORY --target mucomsx --outdir OUTPUT_DIRECTORY`.
+  Uses the local `.tools/mucomsx-runtime.json` profile; use `--runtime-profile`
+  to override it or `--muc-only` to skip compilation. See
+  [native runtime](../docs/mucomsx_runtime.md#batch-mub-compilation).
