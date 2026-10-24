@@ -51,16 +51,16 @@ class ExportMucomTests(unittest.TestCase):
             self.assertIn('--dump-passes', converter.call_args.args[0])
             self.assertEqual(row['status'], 'success')
             self.assertEqual(row['input'], 'nested/song.vgm')
-            self.assertEqual(row['muc'], 'tracks/song/song.muc')
-            self.assertEqual(row['mub'], 'tracks/song/song.mub')
-            self.assertEqual(row['pcm_bank'], 'tracks/song/song_pcm.bin')
-            self.assertEqual(row['voice_bank'], 'tracks/song/song.dat')
-            self.assertEqual(set(p.name for p in (out / 'tracks/song').iterdir()),
+            self.assertEqual(row['muc'], 'nested/tracks/song.muc')
+            self.assertEqual(row['mub'], 'nested/tracks/song.mub')
+            self.assertEqual(row['pcm_bank'], 'nested/tracks/song_pcm.bin')
+            self.assertEqual(row['voice_bank'], 'nested/tracks/song.dat')
+            self.assertEqual(set(p.name for p in (out / 'nested/tracks').iterdir()),
                              {'song.muc', 'song.mub', 'song_pcm.bin', 'song.dat'})
             self.assertTrue((out / row['diagnostics'] / 'song.segments.csv').exists())
             self.assertTrue((out / row['conversion_log']).exists())
             self.assertTrue((out / row['compilation_log']).exists())
-            with (out / 'results.csv').open(newline='', encoding='utf-8') as stream:
+            with (out / 'nested/results.csv').open(newline='', encoding='utf-8') as stream:
                 self.assertEqual(list(csv.DictReader(stream))[0]['status'], 'success')
 
     def test_cli_forwards_no_song_loop_and_600_second_stage_timeout(self):
@@ -126,7 +126,7 @@ class ExportMucomTests(unittest.TestCase):
             self.assertEqual(row['status'], 'compilation_failed')
             self.assertTrue(row['muc'])
             self.assertFalse(row['mub'])
-            self.assertFalse((out / 'tracks/song/song.mub').exists())
+            self.assertFalse((out / 'tracks/song.mub').exists())
 
     def test_empty_muc_and_missing_pcm_are_conversion_failures(self):
         for text in ('', '#pcm missing.bin\nA c4\n', '#pcm ../escape.bin\nA c4\n'):
@@ -184,18 +184,18 @@ class ExportMucomTests(unittest.TestCase):
                     patch('export_mucom.run_batch', return_value=[row]):
                 self.assertEqual(main(), 0)
 
-    def test_rerun_removes_owned_stale_binary_but_preserves_unrelated_files(self):
+    def test_failed_rerun_preserves_prior_bundle_and_unrelated_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, out = self.prepare(Path(tmp))
             with patch('export_mucom.subprocess.run', side_effect=convert), \
                     patch('export_mucom.compile_muc', side_effect=compile_score):
                 run_batch(source, out)
-            unrelated = out / 'tracks/song/notes.txt'
+            unrelated = out / 'tracks/notes.txt'
             unrelated.write_text('user notes')
             with patch('export_mucom.subprocess.run', return_value=subprocess.CompletedProcess([], 1, '', 'bad')):
                 row = run_batch(source, out)[0]
             self.assertEqual(row['status'], 'conversion_failed')
-            self.assertFalse((out / 'tracks/song/song.mub').exists())
+            self.assertTrue((out / 'tracks/song.mub').exists())
             self.assertEqual(unrelated.read_text(), 'user notes')
 
     def test_rerun_refuses_modified_or_unowned_artifacts(self):
@@ -205,12 +205,11 @@ class ExportMucomTests(unittest.TestCase):
                 if modified:
                     with patch('export_mucom.subprocess.run', side_effect=convert):
                         run_batch(source, out, muc_only=True)
-                folder = out / 'tracks/song'
+                folder = out / 'tracks'
                 folder.mkdir(parents=True, exist_ok=True)
                 (folder / 'song.muc').write_text('user edit')
-                with patch('export_mucom.subprocess.run') as converter:
-                    row = run_batch(source, out, muc_only=True)[0]
-                self.assertEqual(row['status'], 'conversion_failed')
+                with patch('export_mucom.subprocess.run') as converter, self.assertRaises(ValueError):
+                    run_batch(source, out, muc_only=True)
                 converter.assert_not_called()
                 self.assertEqual((folder / 'song.muc').read_text(), 'user edit')
 
@@ -243,7 +242,129 @@ class ExportMucomTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+class PackageLayoutTests(unittest.TestCase):
+    prepare = ExportMucomTests.prepare
+
+    def test_adjacent_output_rerun_prunes_generated_sources(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, _ = self.prepare(Path(tmp), ('game/song.vgm',))
+            with patch('export_mucom.subprocess.run', side_effect=convert):
+                first = run_batch(source, muc_only=True)
+                second = run_batch(source, muc_only=True)
+            self.assertEqual(len(first), 1)
+            self.assertEqual(len(second), 1)
+            self.assertEqual(first[0]['muc'], 'game/tracks/song.muc')
+            self.assertEqual((source / 'game/_source_inputs/song.vgm').read_bytes(),
+                             (source / 'game/song.vgm').read_bytes())
+
+    def test_package_results_are_local_and_keep_other_song_on_single_rerun(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp), ('game/a.vgm', 'game/b.vgm'))
+            with patch('export_mucom.subprocess.run', side_effect=convert):
+                run_batch(source, out, muc_only=True)
+                run_batch(source / 'game/a.vgm', out / 'game', muc_only=True)
+            with (out / 'game/results.csv').open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual([r['input'] for r in rows], ['a.vgm', 'b.vgm'])
+            self.assertEqual([r['muc'] for r in rows], ['tracks/a.muc', 'tracks/b.muc'])
+            manifest = json.loads((out / 'game/listening_manifest.json').read_text())
+            self.assertEqual(set(manifest['entries']), {'a.vgm', 'b.vgm'})
+            self.assertFalse((out / 'game/tracks/a').exists())
+
+    def test_same_package_casefold_stems_fail_before_mutation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp), ('song.vgm', 'song.vgz'))
+            with patch('export_mucom.subprocess.run') as converter, self.assertRaisesRegex(ValueError, 'collision'):
+                run_batch(source, out, muc_only=True)
+            converter.assert_not_called()
+            self.assertFalse(out.exists())
+
+    def test_dependency_collision_does_not_overwrite_other_song(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp), ('a.vgm', 'b.vgm'))
+            def bank(command, **kwargs):
+                result = convert(command, **kwargs)
+                stem = Path(command[2]).stem
+                folder = Path(command[command.index('--outdir') + 1])
+                (folder / (stem + '.muc')).write_text('#voice shared.dat\nA c4\n')
+                (folder / 'shared.dat').write_bytes(stem.encode())
+                return result
+            with patch('export_mucom.subprocess.run', side_effect=bank):
+                rows = run_batch(source, out, muc_only=True)
+            self.assertEqual([r['status'] for r in rows], ['muc_only', 'publication_failed'])
+            self.assertEqual((out / 'tracks/shared.dat').read_bytes(), b'a')
+            self.assertFalse((out / 'tracks/b.muc').exists())
+
+    def test_modified_staged_source_is_never_replaced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp))
+            with patch('export_mucom.subprocess.run', side_effect=convert):
+                run_batch(source, out, muc_only=True)
+            staged = out / '_source_inputs/song.vgm'
+            staged.write_bytes(b'user edit')
+            with patch('export_mucom.subprocess.run') as converter, self.assertRaisesRegex(ValueError, 'staged input'):
+                run_batch(source, out, muc_only=True)
+            converter.assert_not_called()
+            self.assertEqual(staged.read_bytes(), b'user edit')
+
+
+    def test_metadata_file_cannot_also_be_package_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp), ('a.vgm', 'results.csv/b.vgm'))
+            with patch('export_mucom.subprocess.run') as converter, self.assertRaisesRegex(ValueError, 'file/directory collision'):
+                run_batch(source, out, muc_only=True)
+            converter.assert_not_called()
+            self.assertFalse(out.exists())
+
+    def test_manifest_failure_restores_previous_bundle_and_allows_retry(self):
+        import hashlib
+        import json
+        import export_mucom
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp))
+            with patch('export_mucom.subprocess.run', side_effect=convert), patch('export_mucom.compile_muc', side_effect=compile_score):
+                run_batch(source, out)
+            before = {p.name: p.read_bytes() for p in (out / 'tracks').iterdir()}
+            original_manifest = json.loads((out / 'listening_manifest.json').read_text())
+            old_source_hash = original_manifest['entries']['song.vgm']['source_sha256']
+            (source / 'song.vgm').write_bytes(b'new source revision')
+            failed = False
+            real_save = export_mucom._atomic_json
+            def fail_commit(path, data):
+                nonlocal failed
+                entry = data.get('entries', {}).get('song.vgm', {}) if isinstance(data, dict) else {}
+                if path.name == 'listening_manifest.json' and entry.get('source_sha256') != old_source_hash and entry.get('published') and not failed:
+                    failed = True
+                    raise OSError('injected ownership commit failure')
+                return real_save(path, data)
+            def changed(command, **kwargs):
+                result = convert(command, **kwargs)
+                folder = Path(command[command.index('--outdir') + 1])
+                (folder / 'song.muc').write_text('A d4\n')
+                return result
+            with patch('export_mucom.subprocess.run', side_effect=changed), patch('export_mucom.compile_muc', side_effect=compile_score), patch('export_mucom._atomic_json', side_effect=fail_commit):
+                row = run_batch(source, out)[0]
+            self.assertTrue(failed)
+            self.assertEqual(row['status'], 'publication_failed')
+            self.assertEqual(before, {p.name: p.read_bytes() for p in (out / 'tracks').iterdir()})
+            restored = json.loads((out / 'listening_manifest.json').read_text())['entries']['song.vgm']
+            self.assertEqual(restored['published'], original_manifest['entries']['song.vgm']['published'])
+            self.assertEqual(restored['source_sha256'], old_source_hash)
+            self.assertEqual(restored['status'], 'success')
+            self.assertEqual(restored['latest_attempt_status'], 'publication_failed')
+            self.assertEqual(restored['staged_sha256'], hashlib.sha256(b'new source revision').hexdigest())
+            self.assertFalse(list((out / 'tracks').glob('*.tmp')))
+            with patch('export_mucom.subprocess.run', side_effect=changed), patch('export_mucom.compile_muc', side_effect=compile_score):
+                self.assertEqual(run_batch(source, out)[0]['status'], 'success')
+
+
 class MucomCompilerTests(unittest.TestCase):
+    def setUp(self):
+        adapter = patch('mucom_compiler._tool_path', side_effect=lambda path, compiler: str(path.resolve()))
+        adapter.start()
+        self.addCleanup(adapter.stop)
+
     def test_native_command_requires_binary_and_nonempty_total_counts(self):
         from mucom_compiler import compile_muc as native_compile
         for mode in ('valid', 'empty', 'missing', 'bad_header', 'failure', 'error_log'):

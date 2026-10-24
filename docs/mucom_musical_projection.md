@@ -200,3 +200,37 @@ compiler dialect、MUB形式、bank配置、memory、clock、runtimeを個別に
 MSX再生は互換性の目標であり、すべての生成MUBが動くという検証済みの保証ではありません。
 MGSDRVへの出力とは別の経路です。音色DATの一致だけではdriverによるTL／AM等の
 上書き後の状態を証明できません。生成命令、実際のcompiled replay、聴取の結果を区別します。
+
+
+## Short FM control states
+
+With length normalization enabled, the FM output gate view uses the shared
+MSX-derived selection policy using the independent `--fm-state-ms` duration
+(default 1 ms / 44 original VGM samples). The existing `--normalization-ms`
+(default 8 ms) still controls eligible whole-note omission and clock movement;
+changing it does not change the internal FM-state threshold. Native State, Segments and source event order remain
+unchanged. The same target path handles native OPNA and mapped OPM-to-OPNA FM.
+
+The current conservative scope is pitch and uniform additive TL changes across
+all four operators. Tone parameters, nonuniform operator levels, pan/modulation,
+partial Key changes, zero-time controls and ordered global effects protect
+adjacent state runs. Released-envelope controls retain their existing path.
+This restriction avoids treating a short FM timbre change as an OPLL preset
+intermediate write.
+
+A retained initial state fills any removed prefix; the preceding retained state
+fills an omitted middle run. The last positive state is protected as
+`release_tail_state`: key-off does not restore full frequency/level registers,
+so omitting this state could incorrectly change the subsequent released tail. Gate attack and release times are retained.
+If every ordinary run is short, the final state is retained. Equivalent adjacent
+retained states are coalesced without crossing protected controls.
+
+The `.mucom.fm_states.input.csv`, `.output.csv` and `.decisions.csv` artifacts
+record the source-derived gate view, selected output view and per-control
+selection/protection reason. `--no-normalize-lengths` bypasses this stage.
+
+The `--fm-state-ms` option is connected to native MUCOM OPNA projection and
+mapped OPM-to-OPNA, including batch `export_mucom.py`. It does not currently
+apply to the separate MUCOMSX MSX-source conversion path; nondefault values
+are rejected there. No new time-threshold sweep or private conversion is
+required by this interface update.

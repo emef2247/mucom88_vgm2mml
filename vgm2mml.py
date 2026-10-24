@@ -622,7 +622,9 @@ def main(argv=None):
                                help='Keep baseline target timing without output normalization')
     parser.set_defaults(normalize_lengths=True)
     parser.add_argument('--normalization-ms',type=float,default=8.0,
-                        help='Output normalization bound in milliseconds (default: 8)')
+                        help='Whole-note omission threshold and output timing bound in milliseconds (default: 8)')
+    parser.add_argument('--fm-state-ms',type=float,default=1.0,
+                        help='MUCOM FM internal pitch/uniform-level state threshold in milliseconds (default: 1); independent of --normalization-ms')
     parser.add_argument('--force',action='store_true',help='Omit explicitly unsupported target effects and excess PCM; record every omission')
     parser.add_argument('--opm-channel-policy',choices=('auto','error','omit','dynamic'),default='auto',
                         help='OPM8 to OPNA6: auto uses dynamic six-voice allocation with force; error/omit retain fixed policy')
@@ -639,6 +641,8 @@ def main(argv=None):
                         help='MUCOMSX: add an OPNA SSG copy of native PSG at the specified detune (e.g. -11)')
     args=parser.parse_args(arguments)
     if args.target=='mucomsx':
+        if args.fm_state_ms!=1.0:
+            parser.error('--fm-state-ms currently applies to native MUCOM FM projection, not the separate MUCOMSX MSX-source path')
         unsupported={'--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
         requested=sorted({flag for option in arguments for flag in unsupported
                           if flag.startswith(option.split('=',1)[0])})
@@ -656,7 +660,7 @@ def main(argv=None):
     if args.target=='mucomsx':
         options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents)
     if args.target=='mucom':
-        options.update(pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
+        options.update(fm_state_ms=args.fm_state_ms,pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
                        pcm_profile=args.pcm_profile,opm_channel_policy=args.opm_channel_policy)
     try:
         result=convert_vgm(args.vgm,args.outdir,**options)
