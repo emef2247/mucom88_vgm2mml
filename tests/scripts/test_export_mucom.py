@@ -63,17 +63,18 @@ class ExportMucomTests(unittest.TestCase):
             with (out / 'nested/results.csv').open(newline='', encoding='utf-8') as stream:
                 self.assertEqual(list(csv.DictReader(stream))[0]['status'], 'success')
 
-    def test_cli_forwards_no_song_loop_and_600_second_stage_timeout(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            source, out = self.prepare(Path(tmp))
-            with patch('sys.argv', ['export_mucom.py', str(source), '--outdir', str(out),
-                                    '--no-song-loop', '--timeout', '600']), \
-                    patch('export_mucom.subprocess.run', side_effect=convert) as converter, \
-                    patch('export_mucom.compile_muc', side_effect=compile_score) as compiler:
-                self.assertEqual(main(), 0)
-            self.assertIn('--no-song-loop', converter.call_args.args[0])
-            self.assertEqual(converter.call_args.kwargs['timeout'], 600)
-            self.assertEqual(compiler.call_args.kwargs['timeout'], 600)
+    def test_cli_forwards_default_and_explicit_stage_timeout(self):
+        for flags, expected in (([], 1200), (['--timeout', '600'], 600)):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmp:
+                source, out = self.prepare(Path(tmp))
+                with patch('sys.argv', ['export_mucom.py', str(source), '--outdir', str(out),
+                                        '--no-song-loop', *flags]), \
+                        patch('export_mucom.subprocess.run', side_effect=convert) as converter, \
+                        patch('export_mucom.compile_muc', side_effect=compile_score) as compiler:
+                    self.assertEqual(main(), 0)
+                self.assertIn('--no-song-loop', converter.call_args.args[0])
+                self.assertEqual(converter.call_args.kwargs['timeout'], expected)
+                self.assertEqual(compiler.call_args.kwargs['timeout'], expected)
 
     def test_cli_forwards_normalization_default_explicit_and_off(self):
         for flags, enabled, milliseconds in (([], True, 8.0),

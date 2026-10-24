@@ -28,7 +28,7 @@ python scripts/export_mucom.py INDIR --outdir OUTDIR --target mucomsx --force
 |---|---|
 | `--outdir OUTDIR` | 出力先ディレクトリを指定 |
 | `--force` | 対応範囲内で未対応の機能や容量超過のPCMを診断付きで省略し、変換を継続 |
-| `--timeout SECONDS` | 変換・コンパイルの各段階の制限時間を指定（既定600秒） |
+| `--timeout SECONDS` | 変換・コンパイルの各段階の制限時間を指定（既定1200秒） |
 | `--target {mucom,mucomsx}` | 出力先を選択。`mucom`（MUCOM88向け）が既定、`mucomsx` はMUCOMSX向け |
 
 `--force` はすべての入力の変換成功を保証するものではありません。省略・近似が発生した場合は、各曲のレポートで理由を確認してください。

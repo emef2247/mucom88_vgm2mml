@@ -120,7 +120,7 @@ def _validate_export_options(*, target='mucom', fm_state_ms=1.0, opll_rhythm='na
     return runtime_options
 
 
-def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=600, song_loop=True,
+def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, song_loop=True,
               normalize_lengths=True, normalization_ms=8.0, fm_state_ms=1.0, pcm_only=False, pcm_policy='strict', force=False,
               opm_channel_policy='auto', pcm_profile='standard', target='mucom',
               opll_rhythm='native', psg_enhance_cents=None, runtime_profile=None, _quiet=False):
@@ -373,7 +373,7 @@ def _package_rows(rows, package, output):
 def run_batch(source, output=None, **options):
     """Export package-local flat listening products without changing conversion."""
     _validate_export_options(**options)
-    if options.get('timeout', 600) <= 0:
+    if options.get('timeout', 1200) <= 0:
         raise ValueError('Timeout must be positive')
     source = Path(source).resolve()
     if not source.exists():
@@ -636,7 +636,7 @@ def main():
     parser.set_defaults(normalize_lengths=True)
     parser.add_argument('--normalization-ms', type=float, default=8.0,
                         help='Whole-note omission threshold and output timing bound in milliseconds (default: 8)')
-    parser.add_argument('--timeout', type=positive, default=600, help='Seconds per conversion/compilation stage (default: 600)')
+    parser.add_argument('--timeout', type=positive, default=1200, help='Seconds per conversion/compilation stage (default: 1200)')
     parser.add_argument('--fm-state-ms', type=float, default=1.0,
                         help='Native MUCOM FM internal-state threshold in milliseconds (default: 1)')
     args = parser.parse_args()

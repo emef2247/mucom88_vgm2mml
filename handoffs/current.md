@@ -1,3 +1,10 @@
+# Timeout default update (2026-10-24)
+
+export_mucom conversion/compilation stage timeout now defaults to1200 seconds
+for both CLI and Python batch API, including MUCOMSX runtime forwarding. Explicit
+--timeout overrides remain supported. Segment-to-OPNA and OPM-to-OPNA catch-up
+from x68k are deferred by user request; do not resume those changes here.
+
 # Batch package layout update (2026-10-24)
 
 Implemented common input-parent packages in `scripts/export_mucom.py` for both

@@ -22,7 +22,7 @@ do not require extraction. Existing OPNA FM may share
 an external PCM input when extraction is not selected, but simultaneous native
 ADPCM-B and external PCM, or MSM6258 plus SegaPCM, are rejected. Unsupported
 active commands remain errors. Use `--muc-only` on the batch exporter to omit
-MUB compilation. The batch conversion/compilation timeout defaults to600 seconds per stage.
+MUB compilation. The batch conversion/compilation timeout defaults to1200 seconds per stage.
 
 ## Supported source scope
 
