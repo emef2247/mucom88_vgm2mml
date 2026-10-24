@@ -104,7 +104,7 @@ def omit_short_fm(analysis, bound_samples, loop_start):
     return apply_fm_omissions(analysis, ids), losses
 
 
-def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, milliseconds, *, seams=(), auxiliary_controls=()):
+def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, milliseconds, *, fm_state_ms=1.0, seams=(), auxiliary_controls=()):
     """Return a candidate policy/map; caller atomically falls back if infeasible.
 
     Auxiliary eligibility/bank packing must have succeeded before this call.
@@ -121,6 +121,9 @@ def normalize_source(analysis, tracks, pcm_analysis, end, loop_start, millisecon
         raise ValueError('FM and PCM normalization require the same original source end')
     derived, losses = omit_short_fm(analysis, bound, loop_start)
     gates = build_fm_gates(derived)
+    from mucom_fm_state_normalization import filter_fm_states
+    from fm_state_runs import fm_short_state_samples
+    gates, _ = filter_fm_states(gates, derived, max_samples=fm_short_state_samples(fm_state_ms))
     audit_fm_key_edges(derived, gates)
     proposed = {part: list(units) for part, units in tracks.items()}
     omitted_pcm = []

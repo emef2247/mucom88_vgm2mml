@@ -92,7 +92,7 @@ python vgm2mml.py input.vgm --target mgs --outdir OUTPUT
 python scripts/export_mucom.py INPUT_DIRECTORY --outdir outputs/mucom88
 ```
 
-`tracks/` 以下に曲ごとのMUC・MUB・必要なバンク、`_diagnostics/` 以下に中間CSV／JSON・コンパイラログ・レポートを保存します。各曲の結果は `results.csv` で確認できます。MUCだけを一括生成する場合は `--muc-only` を指定してください。
+Final MUC/MUB files and required banks are written directly under each input-parent package's `tracks/`, without a per-song subdirectory. `_diagnostics/<stem>/` holds working files, and `_source_inputs/` holds unchanged inputs. Each package has `listening_manifest.json` and `results.csv`; invocation summaries are in `OUTDIR/_diagnostics/results.*`. Omit `--outdir` to export beside the source files. See [output layout](docs/output_layout.md). Use `--muc-only` to skip compilation.
 
 MUB生成にはMUCOM88 Windows 260407に同梱された `mucomDotNETConsole.exe` を使用します。PCM保持中制御の拡張命令が必要なMUCには、別配置した対応版mucomDotNETを自動選択します。外部ツールはリポジトリに同梱しません。配置・導入方法は[docs/mucom_musical_projection.md](docs/mucom_musical_projection.md#pcm保持中制御と相互運用の境界)を参照してください。別のコンパイラ配置は `--mucom88 <実行ファイル>` で指定できます。
 
@@ -165,6 +165,7 @@ MUCOM88を中心とした主なオプションは次のとおりです。MUCOMSX
 | `--outdir DIRECTORY` | 出力先（既定 `outputs/`） |
 | `--normalize-lengths` / `--no-normalize-lengths` | 出力用正規化の有効／無効（既定は有効） |
 | `--normalization-ms MS` | 短い発音の省略閾値と出力時刻の最大移動量（既定8ms、適用条件あり） |
+| `--fm-state-ms MS` | native MUCOMのFM内部状態の省略閾値（既定1ms）。`--normalization-ms`とは独立。詳しくは[FM状態の整理](docs/mucom_musical_projection.md#short-fm-control-states) |
 | `--timing-bound-ms MS` | 正規化を無効にした基準経路の時刻移動上限（既定8ms） |
 | `--force` | 対応範囲内の未対応機能・容量超過PCMを省略し続行。[適用範囲と一覧](docs/mucom_force.md) |
 | `--opm-channel-policy auto/error/omit/dynamic` | OPMの6枠割当。既定autoはforce時に動的割当を使用。[詳細](docs/opm_to_opna.md) |

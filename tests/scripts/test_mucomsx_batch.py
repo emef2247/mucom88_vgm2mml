@@ -57,8 +57,10 @@ class MucomsxBatchTests(unittest.TestCase):
                 self.assertEqual((output / row['mub']).read_bytes(), b'msPb0101' + bytes(20))
                 self.assertEqual(json.loads((output / row['compilation_log']).read_text())['status'], 'passed')
                 self.assertNotIn('CHECK.VGM', (output / row['compilation_log']).read_text())
-            manifest = json.loads((output / 'export_manifest.json').read_text())
-            self.assertTrue(all(any(name.endswith('.mub') for name in item['files']) for item in manifest.values()))
+            for parent in ('one', 'two'):
+                manifest = json.loads((output / parent / 'listening_manifest.json').read_text())
+                self.assertTrue(all(any(name.endswith('.mub') for name in item['published'])
+                                    for item in manifest['entries'].values()))
 
     def test_failed_dos_job_keeps_muc_and_diagnostics_then_continues(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -75,7 +77,7 @@ class MucomsxBatchTests(unittest.TestCase):
             self.assertEqual([r['status'] for r in rows], ['compilation_failed', 'success'])
             self.assertTrue((output / rows[0]['muc']).is_file())
             self.assertFalse(rows[0]['mub'])
-            self.assertFalse((output / 'tracks/bad/bad.mub').exists())
+            self.assertFalse((output / 'tracks/bad.mub').exists())
             self.assertIn('FAILED.ERR', (output / rows[0]['compilation_log']).read_text())
 
     def test_bad_runtime_profile_fails_before_conversion_or_output_changes(self):

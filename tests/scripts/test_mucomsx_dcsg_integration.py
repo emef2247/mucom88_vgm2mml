@@ -65,9 +65,9 @@ class MucomsxDcsgIntegrationTests(unittest.TestCase):
         rows=run_batch(FIXTURES/'PSGSRC.vgm',self.out/'batch',target='mucomsx',
                        muc_only=True,song_loop=False,opll_rhythm='layered',psg_enhance_cents=11)
         self.assertEqual(rows[0]['status'],'muc_only')
-        manifest=json.loads((self.out/'batch/export_manifest.json').read_text())
-        self.assertIn('PSGSRC.muc',manifest['PSGSRC']['files'])
-        runs=list((self.out/'batch/_diagnostics/PSGSRC').glob('run_*'))
+        manifest=json.loads((self.out/'batch/listening_manifest.json').read_text())
+        self.assertIn('tracks/PSGSRC.muc',manifest['entries']['PSGSRC.vgm']['published'])
+        runs=list((self.out/'batch/_diagnostics/PSGSRC').rglob('run_*'))
         report=json.loads((runs[0]/'PSGSRC.mucomsx.json').read_text())
         self.assertEqual(report['psg_enhancement']['cents'],11)
         for options in ({'opll_rhythm':'layered'},{'psg_enhance_cents':11}):
@@ -84,7 +84,7 @@ class MucomsxDcsgIntegrationTests(unittest.TestCase):
         rows=run_batch(source,self.out/'rhythm',target='mucomsx',muc_only=True,
                        song_loop=False,opll_rhythm='layered')
         self.assertEqual(rows[0]['status'],'muc_only')
-        text=(self.out/'rhythm/tracks/RHYTHM/RHYTHM.muc').read_text(encoding='cp932')
+        text=(self.out/'rhythm/tracks/RHYTHM.muc').read_text(encoding='cp932')
         self.assertTrue(any(line.startswith('MSXG ') for line in text.splitlines()))
         self.assertTrue(any(line.startswith('G ') for line in text.splitlines()))
 

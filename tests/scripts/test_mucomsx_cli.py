@@ -62,9 +62,8 @@ class MucomsxCliTests(unittest.TestCase):
             self.assertEqual(row['status'], 'muc_only', row['detail'])
             published = output / row['muc']
             published.write_bytes(b'user edited MUC')
-            second = run_batch(source, output, target='mucomsx', muc_only=True)[0]
-            self.assertEqual(second['status'], 'conversion_failed')
-            self.assertIn('modified artifact', second['detail'])
+            with self.assertRaisesRegex(ValueError, 'modified artifact'):
+                run_batch(source, output, target='mucomsx', muc_only=True)
             self.assertEqual(published.read_bytes(), b'user edited MUC')
 
     def test_batch_cli_rejects_explicit_mucom_options(self):

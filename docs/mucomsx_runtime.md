@@ -84,7 +84,7 @@ is required in that mode.
 Each successful song publishes its MUC, dependencies and MUB under `tracks/`.
 `results.csv` and per-song reports distinguish conversion and compilation
 failures. Compilation logs and isolated DOS job evidence remain under each
-song's new `_diagnostics/<song>/run_*/mucomsx/` directory. Failed or incomplete
+song's `_diagnostics/<song>/` attempt directory (see [output layout](output_layout.md)). Failed or incomplete
 MUBs are not published; the generated MUC and failure evidence remain available.
 Other songs continue after a failure.
 

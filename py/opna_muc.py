@@ -426,7 +426,7 @@ def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,no
 
 
 def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
-                timing_bound_ms=8.0,loops=True,song_loop=True,normalize_lengths=True,normalization_ms=8.0,
+                timing_bound_ms=8.0,loops=True,song_loop=True,normalize_lengths=True,normalization_ms=8.0,fm_state_ms=1.0,
                 pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="auto",pcm_profile="standard"):
     from pcm_profiles import get_profile
     profile=get_profile(pcm_profile)
@@ -472,6 +472,8 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
     try:
         from conversion_config import normalization_samples
         normalization_samples(normalization_ms)
+        from fm_state_runs import fm_short_state_samples
+        fm_short_state_samples(fm_state_ms)
         progress('source_preflight')
         usage=inspect_source(source);report['source_usage']=usage
         if usage['unsupported_commands']:
@@ -681,9 +683,22 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             progress('output_normalization')
             from mucom_normalization import normalize_source
             analysis,tracks,clock,timing,report['normalization']=normalize_source(
-                original_analysis,tracks,pcm_metadata['analysis'],end,loop_start,normalization_ms,seams=seams,
+                original_analysis,tracks,pcm_metadata['analysis'],end,loop_start,normalization_ms,fm_state_ms=fm_state_ms,seams=seams,
                 auxiliary_controls=ssg.controls if ssg_command==0xa0 and ssg_eligible else ())
             gates=build_fm_gates(analysis)
+            from mucom_fm_state_normalization import filter_fm_states, dump_decisions
+            dump_gates(gates,passes/(stem+'.mucom.fm_states.input.csv'))
+            from fm_state_runs import fm_short_state_samples
+            short_state_bound=fm_short_state_samples(fm_state_ms)
+            gates, short_states=filter_fm_states(gates,analysis,max_samples=short_state_bound)
+            dump_gates(gates,passes/(stem+'.mucom.fm_states.output.csv'))
+            dump_decisions(short_states,passes/(stem+'.mucom.fm_states.decisions.csv'))
+            report['normalization']['fm_short_states']=dict(
+                threshold_ms=float(fm_state_ms), threshold_samples=short_state_bound,
+                source_evidence_unchanged=True,
+                omitted=sum(row['action']=='omit_short_state' for row in short_states),
+                decision_csv=str(passes/(stem+'.mucom.fm_states.decisions.csv')))
+            report['normalization']['known_loss'] |= bool(report['normalization']['fm_short_states']['omitted'])
         audit_fm_key_edges(analysis,gates)
         from opna import dump_analysis
         dump_analysis(analysis,state_csv=passes/(stem+'.mucom.output.state.csv'),
