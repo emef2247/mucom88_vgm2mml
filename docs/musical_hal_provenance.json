@@ -148,9 +148,9 @@
       "source_path": "py/native_imports/source.py",
       "destination_path": "py/musical_hal/native_imports/source.py",
       "source_sha256": "12ab13fb88e21cf16c31f80c6a898b3c9b9ea242320ea030d0e9730fa638c7cf",
-      "adapted_sha256": "1b2b2535f427361204998cba52d91622032f8a5422a881a3dfcdab1642ea3e65",
+      "adapted_sha256": "dd9d1e917a0a639df090dd8316196b75895569ff80e8270f9ddc0d3b2de78812",
       "byte_exact": false,
-      "adaptation": "package-relative imports and normalized LF; provenance resolves MUCOM namespaced manifest; mucom88-side OPN2 (YM2612) inventory and register evidence added (no msx counterpart); OPN2 state machine wired through the shared FM trace",
+      "adaptation": "package-relative imports and normalized LF; provenance resolves MUCOM namespaced manifest; mucom88-side OPN2 (YM2612) inventory and register evidence added (no msx counterpart); OPN2 state machine wired through the shared FM trace; mucom88-side OPN (YM2203) inventory, register evidence and FM trace added the same way",
       "source_crlf_count": 0,
       "adapted_crlf_count": 0
     },

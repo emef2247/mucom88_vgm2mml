@@ -42,6 +42,7 @@ def inspect_source(source):
         chip = {0x54: 'opm', 0xa4: 'opm', 0x56: 'opna', 0x57: 'opna',
                 0xa6: 'opna', 0xa7: 'opna', 0xa0: 'psg', 0xd2: 'scc',
                 0x52: 'opn2', 0x53: 'opn2', 0xa2: 'opn2', 0xa3: 'opn2',
+                0x55: 'opn',
                 0x51: 'opll', 0xb7: 'pcm', 0xc0: 'segapcm'}.get(cmd)
         if chip:
             chips.add(chip)
@@ -117,9 +118,10 @@ def inspect_source(source):
     opm_clock = int.from_bytes(raw[opm_offset:opm_offset + 4], 'little')
     opll_clock = int.from_bytes(raw[0x10:0x14], 'little') if header['version'] >= 0x110 else 0
     opn2_clock = int.from_bytes(raw[0x2c:0x30], 'little') if header['version'] >= 0x150 else 0
+    opn_clock = int.from_bytes(raw[0x44:0x48], 'little') if header['version'] >= 0x110 else 0
     declarations = dict(opm=opm_clock, opna=header['opna_clock_raw'],
                         opll=opll_clock, psg=header['ay_clock_raw'],
-                        opn2=opn2_clock,
+                        opn2=opn2_clock, opn=opn_clock,
                         scc=header['scc_clock_raw'], pcm=header['msm6258_clock_raw'],
                         segapcm=header['segapcm_clock_raw'])
     has_song_loop = bool(int.from_bytes(raw[0x1c:0x20], 'little'))
