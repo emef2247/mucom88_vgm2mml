@@ -639,7 +639,11 @@ def main(argv=None):
                           if flag.startswith(option.split('=',1)[0])})
         if requested:
             parser.error('--target mucomsx does not support '+', '.join(requested))
-        from mucomsx_conversion import ConversionError,convert_vgm
+        from conversion_config import inspect_source as _inspect_source
+        if 'opn2' in _inspect_source(args.vgm)['used_chips']:
+            from opn2_mucomsx import ConversionError,convert_vgm
+        else:
+            from mucomsx_conversion import ConversionError,convert_vgm
     elif args.target=='md':
         if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')

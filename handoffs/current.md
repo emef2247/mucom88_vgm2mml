@@ -92,6 +92,28 @@ listening comes later, and an OPN2-to-OPNA mapping for MUCOMSX
 
 ---
 
+# OPN2 S3b: OPN2-to-OPNA mapping under --target mucomsx (2026-11-01)
+
+vgm2mml.py now dispatches a YM2612 source under --target mucomsx
+to py/opn2_mucomsx.py instead of the MSX source-bundle route.
+The mapping reuses the OPNA projection wholesale: gates from the
+shared builder, mucom_fm.project_state for clock-projected pitch
+and DAT voices (voice ids adapted to MUCOMSX's 0-based @ via a
+dict that stores id-1), mucomsx choose_timing for Timer-B, % tick
+lengths, SourceLoopPlan structure, compact_tracks macros, the
+8192-byte .dat bank and the usual capacity checks. FM short-state
+filtering applies; whole-gate output normalization does not yet
+(recorded in the report diagnostics). DCSG needs --force
+(omission recorded) until its SSG mapping; the DAC's intended
+home on this route is OPNA ADPCM-B (part K), still to come.
+The MUCOMSX runtime is not installed in Muse's VM, so
+compiler_status stays 'not_run' and MUB compilation is the user's
+step (scripts/export_mucom.py --target mucomsx, or --muc-only,
+which routes through the same dispatch). Tests:
+tests/scripts/test_opn2_mucomsx.py.
+
+---
+
 # Native SCC5 default for MUCOMSX (2026-10-29)
 
 User requests SCC VGM -> native SCCA..SCCE by default, preserving shared MSX
