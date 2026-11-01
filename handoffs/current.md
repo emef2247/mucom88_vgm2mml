@@ -1,3 +1,31 @@
+# Takeover and MSX re-sync to a52e52c (2026-11-01)
+
+The v2.x working tree was committed by the user as codex/upgrade_to_v2.x
+(809b63d). Muse continues on claude/upgrade-v2x (from 809b63d).
+
+Done in 039b797: musical_hal snapshot advanced from MSX b78d675 to a52e52c
+(NES APU register decode, source registration and native units; new
+nesapu/native_nesapu snapshots; provenance manifest and its test pin
+updated). Local psg_scc_performance/psg_scc_target advanced to the same
+MSX state (they were byte-identical to b78d675), carrying the dedicated
+PSG noise fix; mml_envelopes renders pitchless notes with a placeholder
+pitch; regression test ported. The MSX production_v110 macro dispatch was
+not ported (no corresponding package here).
+
+Full suite on Muse's VM: failure set identical before and after the sync
+(17 pre-existing failures/errors, environment-dependent; the new noise
+regression test and the provenance test pass). The user's own environment
+results may differ, as with the sibling projects.
+
+Next: OPN2 (YM2612) VGM -> MUC. Design study is in Muse's workspace
+(mucom88_opn2_design.md): target dialect is mucomMD2vgm's Mega Drive
+mapping of MUCOM88 MML; entry point is conversion_config.inspect_source,
+which does not inventory 0x52/0x53 yet. Open decisions for the user:
+target profile placement, DAC scope for v1, DCSG scope for v1.
+Do not resume the deferred x68k catch-up or DCSG dual-source work.
+
+---
+
 # Native SCC5 default for MUCOMSX (2026-10-29)
 
 User requests SCC VGM -> native SCCA..SCCE by default, preserving shared MSX
