@@ -59,13 +59,16 @@ def am_restore_commands(state):
                  for number, op in zip(OPERATOR_NUMBERS, state.operators))
 
 def project_state(state, source_clock_hz, voices, *, initial, previous_state=None,
-                  target_channel=0):
+                  target_channel=0, mono=False):
     """Project controls without changing source state or emitting a duration.
 
     ``voices`` maps native DAT bytes to one-based bank IDs.  ``initial`` denotes
     a new gate; held changes must pass the previous sounding state.  Numeric
     register controls are limited to algorithm and shared LFO controls, whose
-    native MML has no equivalent disable/algorithm-only command.
+    native MML has no equivalent disable/algorithm-only command.  ``mono``
+    serves chips with no stereo pan and no LFO (YM2203): pan and LFO
+    modulation handling are skipped instead of raising on pan 0 or
+    emitting H/y$22 controls the source chip cannot express.
     """
     if not 0 <= target_channel < 6:
         raise ValueError('Native FM target channel must be 0..5')
@@ -104,14 +107,14 @@ def project_state(state, source_clock_hz, voices, *, initial, previous_state=Non
     if initial:
         commands.extend((f'@{voice_id}', 'v15'))
     pan = ((state.left_enabled or 0) << 1) | (state.right_enabled or 0)
-    if not pan:
+    if not pan and not mono:
         raise ValueError('FM pan 0: installed native compiler rejects both p0 and register B4; mute-bit projection is not supported by this compiler profile')
-    if initial or (state.left_enabled, state.right_enabled) != (previous_state.left_enabled, previous_state.right_enabled):
+    if not mono and (initial or (state.left_enabled, state.right_enabled) != (previous_state.left_enabled, previous_state.right_enabled)):
         commands.append(f'p{pan}')
     modulation = (state.lfo_enabled or 0, state.lfo_rate or 0, state.pms or 0, state.ams or 0)
     previous_modulation = None if initial else (previous_state.lfo_enabled or 0, previous_state.lfo_rate or 0,
                                                previous_state.pms or 0, previous_state.ams or 0)
-    modulation_changed = modulation != previous_modulation
+    modulation_changed = not mono and modulation != previous_modulation
     if modulation_changed:
         enabled, rate, pms, ams = modulation
         if enabled:

@@ -640,8 +640,11 @@ def main(argv=None):
         if requested:
             parser.error('--target mucomsx does not support '+', '.join(requested))
         from conversion_config import inspect_source as _inspect_source
-        if 'opn2' in _inspect_source(args.vgm)['used_chips']:
+        _used_chips=_inspect_source(args.vgm)['used_chips']
+        if 'opn2' in _used_chips:
             from opn2_mucomsx import ConversionError,convert_vgm
+        elif 'opn' in _used_chips:
+            parser.error('--target mucomsx does not support YM2203 (OPN) sources yet; use --target mucom')
         else:
             from mucomsx_conversion import ConversionError,convert_vgm
     elif args.target=='md':
@@ -651,7 +654,18 @@ def main(argv=None):
     else:
         if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')
-        from opna_muc import ConversionError,convert_vgm
+        from conversion_config import inspect_source as _inspect_source
+        try:
+            _used_chips=_inspect_source(args.vgm)['used_chips']
+        except (OSError,ValueError):
+            # Route selection must not pre-empt the default route's own
+            # error handling (or mocked converters in tests); only a
+            # positive OPN inventory diverts to the OPN route.
+            _used_chips=()
+        if 'opn' in _used_chips:
+            from opn_muc import ConversionError,convert_vgm
+        else:
+            from opna_muc import ConversionError,convert_vgm
     options=dict(dump_passes=args.dump_passes,diagnostics_outdir=args.diagnostics_outdir,
                  timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
                  song_loop=not args.no_song_loop,normalize_lengths=args.normalize_lengths,

@@ -354,3 +354,51 @@ source Segment retention, decision CSV contents and short release-tail retention
   fixture conversion or duration sweep was run for this independent-option update.
 
 Additional check: public volume_sweep VGM -> inherited MGS MML succeeded with --dump-passes. MDX-only compatibility options are no longer exposed. scripts/README.md remains user-owned and contains historical MDX tool entries for the user to edit.
+
+---
+
+# OPN (YM2203) S1-S3: inventory, FM state machine, native MUC projection (2026-11-02)
+
+User decision (2026-11-02): OPN is the next source chip, implemented
+in mucom88_vgm2mml (OPN is the PC-8801mkIISR standard and MUCOM88's
+home chip). Design summary in Muse's workspace
+(mucom88_opn_design.md).
+
+S1: conversion_config inventories 0x55 as 'opn' with the header clock
+at 0x44; native_imports registers the 'opn' domain (WRITE_CHIPS,
+opn_clock_raw at 0x44, _fm_trace emits .native.opn.registers.csv);
+provenance entry for source.py updated accordingly.
+S2: new native_imports/opn.py state machine (OPNA subset: one port,
+3 FM channels, key channel = data & 3 with no port bit, prescaler
+0x2D-0x2F with OPNA selection semantics, no LFO/pan/rhythm domains,
+SSG writes attributed to the 'ssg' domain as unmodeled writes).
+native_imports/opn_music.build_opn_gates reuses the shared FM gate
+builder with parts='ABC'.
+S3: new py/opn_ssg.py SSG replay (SSG clock = master*6/prescale/2,
+so register values pitch-match OPNA) and py/opn_muc.py native
+renderer: FM A B C via mucom_fm.project_state(mono=True) (mucom_fm
+gained an opt-in mono keyword skipping pan/LFO; other callers
+unchanged), DAT voice bank, C128 grid at fixed Timer B 224+3=227,
+% lengths. Because the YM2203 clock is half the native clock,
+opn_muc re-expresses each control state as (fnum*2^k, block-k) with
+k minimizing target detune before projection (frequency-exact;
+e.g. fnum 580/block 5 spells o4 b D-7 instead of o6 c D-328). SSG
+parts D E F render tone segments only; noise and hardware-envelope
+segments block without --force and are recorded as omissions with
+it. vgm2mml --target mucom routes OPN sources to opn_muc (route
+check is failure-tolerant so mocked/missing inputs keep the default
+route's behavior); --target mucomsx rejects OPN explicitly for now.
+
+Verification: authored tests test_opn_source.py (8) and
+test_opn_muc.py (4) pass. Real data (Sorcerian PC-8801 pack, kept
+outside the repo): 01 Opening converts without force (936 note
+units; FM detunes within |D|<=60 except one 11-sample bottom-range
+transient at D-348, recorded per-note in the manifest); 06 Hydra
+stops on the SSG noise gate without force and converts with it
+(2,120 noise segments omitted — SSG noise is the rhythm section in
+this repertoire, so SSG noise rendering is the priority next
+stage). Full suite: failure set name-identical to the pristine
+738c186 baseline (17 environment-dependent failures) on this VM.
+
+Next: user's MUCOM88 compile + listening check; SSG noise/envelope
+rendering; OPN -> MUCOMSX mapping.
