@@ -59,10 +59,36 @@ analyze_source routes opn2 through the shared FM trace, so states,
 segments and unmodeled CSVs are emitted and analysis_available is
 true. Gate extraction reuses opna_music.build_fm_gates, which now
 takes a part-letter mapping; opn2_music.build_opn2_gates passes the
-MD parts A-F. The provenance manifest records both adaptations.
+MD parts ABCHIJ (corrected at S3: the mucomMD2vgm memo's FM map is
+A B C H I J, the same letters as OPNA FM). The provenance manifest
+records both adaptations.
 Tests: test_opn2_source.py grew a timed key on/off gate case with
 the key-edge audit. Next: S3, the MD target profile and FM 6ch
 projection to MUC.
+
+---
+
+# OPN2 S3: MD target renders FM 6ch to mucomMD2vgm MML (2026-11-01)
+
+`--target md` dispatches to py/opn2_muc.py. The .muc is the MML text
+(cp932, CRLF), in the mucomMD2vgm dialect: FM parts A B C H I J,
+voices pooled across parts as @N definitions (ALG, FB, then
+AR DR SR RR SL TL KS ML DT AM SSG per operator), pan via p, LFO
+changes via H (+ y$22,0 to disable), mid-gate key-mask changes via
+y$28, pitch spelled like mucom_fm (nearest FNUM-table entry at the
+source block, residual as D detune), gate timings quantized to
+MUCOM clocks at tempo 150 (two clocks per 60 Hz frame), song loop
+as L in part A. Two @N conventions are flagged in every manifest
+until the first user-side compile confirms them: operator rows in
+logical order 1,2,3,4 and DT signed -3..+3. DCSG sources need
+--force (omission recorded) until S4; the check reads the native
+analysis's active_chips because the frontend does not inventory
+SN76489. DAC traffic stays unmodeled evidence until S5.
+Tests: tests/scripts/test_opn2_muc.py (authored synthetic VGMs:
+part A note, port-1 note on part H, DCSG force gate). The user
+compiles the .muc with mucomMD2vgm on Windows; MD hardware
+listening comes later, and an OPN2-to-OPNA mapping for MUCOMSX
+(MUC/MUB on real OPNA) is the next user-requested step after this.
 
 ---
 

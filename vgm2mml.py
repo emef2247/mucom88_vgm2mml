@@ -592,8 +592,8 @@ def main(argv=None):
             sys.argv=previous
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('vgm',help='Input supported VGM/VGZ')
-    parser.add_argument('--target',choices=('mucom','mucomsx','mgs'),default='mucom',
-                        help='mucom (default), mucomsx MSX musical MUC, or explicit inherited compatibility target')
+    parser.add_argument('--target',choices=('mucom','mucomsx','mgs','md'),default='mucom',
+                        help='mucom (default), mucomsx MSX musical MUC, md Mega Drive MUC for mucomMD2vgm, or explicit inherited compatibility target')
     parser.add_argument('--outdir',default='outputs')
     parser.add_argument('--dump-passes',action='store_true',help='source/music/structure dumps are always retained')
     parser.add_argument('--diagnostics-outdir')
@@ -640,6 +640,10 @@ def main(argv=None):
         if requested:
             parser.error('--target mucomsx does not support '+', '.join(requested))
         from mucomsx_conversion import ConversionError,convert_vgm
+    elif args.target=='md':
+        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
+            parser.error('Native MSX enhancement options require --target mucomsx')
+        from opn2_muc import ConversionError,convert_vgm
     else:
         if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')
