@@ -16,14 +16,15 @@ from .vgm_loop import read_loop_metadata
 
 
 WRITE_CHIPS = {0x54: 'opm', 0xa4: 'opm', 0x56: 'opna', 0x57: 'opna',
-               0xa6: 'opna', 0xa7: 'opna', 0x50: 'dcsg', 0x30: 'dcsg',
+               0xa6: 'opna', 0xa7: 'opna', 0x52: 'opn2', 0x53: 'opn2',
+               0xa2: 'opn2', 0xa3: 'opn2', 0x50: 'dcsg', 0x30: 'dcsg',
                0x4f: 'dcsg', 0x3f: 'dcsg', 0xb7: 'msm6258', 0xb8: 'msm6295',
                0xc0: 'segapcm', 0xd4: 'c140'}
 BLOCK_CHIPS = {4: 'msm6258', 0x44: 'msm6258', 0x80: 'segapcm',
                0x81: 'opna', 0x8b: 'msm6295', 0x8d: 'c140'}
-STREAM_CHIPS = {0: 'dcsg', 3: 'opm', 4: 'segapcm', 7: 'opna',
+STREAM_CHIPS = {0: 'dcsg', 2: 'opn2', 3: 'opm', 4: 'segapcm', 7: 'opna',
                 0x17: 'msm6258', 0x18: 'msm6295', 0x1c: 'c140'}
-CHIPS = ('opm', 'opna', 'dcsg', 'msm6258', 'msm6295', 'segapcm', 'c140')
+CHIPS = ('opm', 'opna', 'dcsg', 'msm6258', 'msm6295', 'segapcm', 'c140', 'opn2')
 
 
 def _header(raw):
@@ -32,6 +33,7 @@ def _header(raw):
         return int.from_bytes(raw[offset:offset+size], 'little') if (
             header['version'] >= since and offset+size <= header['data_start']) else 0
     header.update(opm_clock_raw=field(0x30, 4, 0x110),
+                  opn2_clock_raw=field(0x2c, 4, 0x150),
                   dcsg_clock_raw=field(0x0c, 4, 0x100),
                   dcsg_feedback_raw=field(0x28, 2, 0x110),
                   dcsg_shift_width_raw=field(0x2a, 1, 0x110),
@@ -119,6 +121,37 @@ def _fm_trace(bundle, chip, root, stem):
     return analysis, str(path)
 
 
+def _opn2_trace(bundle, root, stem):
+    """Register-level evidence only; gate/Segment interpretation is a
+    later stage, so no state or segment CSVs are produced yet."""
+    from . import opn2
+    raw, header = bundle['raw'], bundle['header']
+    clock_raw = header['opn2_clock_raw']
+    rows = []
+    for event_id, event in enumerate(bundle['events']):
+        command = event.command
+        if WRITE_CHIPS.get(command) != 'opn2':
+            continue
+        pos = event.address
+        register, value = raw[pos + 1:pos + 3]
+        port = int(command in (0x53, 0xa3))
+        channel = opn2.register_channel(register, value, port)
+        rows.append(dict(event_id=event_id, source_event_id=event.source_event_id,
+            original_event_id=event.source_event_id, address=pos,
+            command=command, chip_instance=int(command in (0xa2, 0xa3)),
+            chip_type='YM2612', clock_hz=clock_raw & 0x3fffffff,
+            clock_raw=clock_raw, ch='' if channel is None else channel,
+            register=register, data=value, vgmticks=event.vgmticks,
+            loop_iteration=event.loop_iteration,
+            original_vgmticks=event.original_vgmticks, port=port))
+    path = root / f'{stem}.native.opn2.registers.csv'
+    _csv(path, rows, ('event_id', 'source_event_id', 'original_event_id', 'address',
+        'command', 'chip_instance', 'chip_type', 'clock_hz', 'clock_raw', 'ch',
+        'register', 'data', 'vgmticks', 'loop_iteration', 'original_vgmticks',
+        'port'))
+    return str(path)
+
+
 def _sega(bundle, root, stem):
     from .segapcm import SegaPcmTrace
     raw = bundle['raw']
@@ -155,6 +188,9 @@ def analyze_source(source, outdir, stem=None):
         try:
             if chip in ('opm', 'opna'):
                 analysis, trace_paths[chip] = _fm_trace(bundle, chip, root, stem)
+            elif chip == 'opn2':
+                analysis = None
+                trace_paths[chip] = _opn2_trace(bundle, root, stem)
             elif chip == 'segapcm':
                 analysis = _sega(bundle, root, stem)
             elif chip == 'dcsg':

@@ -20,9 +20,30 @@ results may differ, as with the sibling projects.
 Next: OPN2 (YM2612) VGM -> MUC. Design study is in Muse's workspace
 (mucom88_opn2_design.md): target dialect is mucomMD2vgm's Mega Drive
 mapping of MUCOM88 MML; entry point is conversion_config.inspect_source,
-which does not inventory 0x52/0x53 yet. Open decisions for the user:
-target profile placement, DAC scope for v1, DCSG scope for v1.
+which does not inventory 0x52/0x53 yet. Decisions resolved by the user
+(2026-11-01): new --target profile for MD, DAC diagnostics-only in v1,
+DCSG separated into a later stage.
 Do not resume the deferred x68k catch-up or DCSG dual-source work.
+
+---
+
+# OPN2 S1: inventory and register evidence (2026-11-01)
+
+User approved the staged plan (new MD --target profile, DAC
+diagnostics-only in v1, DCSG as its own later stage) and parallel work
+alongside the Famicom debugging, which keeps priority.
+
+S1 done: conversion_config.inspect_source inventories YM2612 writes
+(0x52/0x53, dual 0xA2/0xA3 reported as an unsupported second instance)
+with the header clock at 0x2C; musical_hal native_imports gains an
+opn2 domain (WRITE/STREAM chip maps, CHIPS, opn2_clock_raw) and emits
+{native}.opn2.registers.csv evidence with OPNA-shaped channel
+attribution (new native_imports/opn2.py). No state/Segment
+interpretation yet: analysis_available stays false for opn2 and the
+provenance manifest records source.py's adaptation. SN76489 inventory
+in the frontend is unchanged (arrives with the DCSG stage).
+Tests: tests/scripts/test_opn2_source.py (authored synthetic VGMs).
+Next: S2 gate/Segment extraction modeled on opna_music.
 
 ---
 
