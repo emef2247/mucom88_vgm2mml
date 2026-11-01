@@ -69,7 +69,7 @@ def _evidence_between(index, identity, start, end):
     return [member[1] for member in selected]
 
 
-def build_fm_gates(analysis):
+def build_fm_gates(analysis, parts='ABCHIJ'):
     result={}
     segment_index = _evidence_index(analysis.segments)
     key_events = {channel: [] for channel in range(6)}
@@ -143,10 +143,10 @@ def build_fm_gates(analysis):
                     if matching is not None and slices[matching].state.key_mask != event.state.key_mask:
                         slices.insert(matching, Control(event.vgmticks, event.vgmticks,
                                                        event.state, (), (event.source_event_id,)))
-            gates.append(Gate('ABCHIJ'[channel],channel,group[0].continuity_id,start,end,
+            gates.append(Gate(parts[channel],channel,group[0].continuity_id,start,end,
                               tuple(slices),tuple(s.segment_id for s in evidence),
                               tuple(e.source_event_id for e in events)))
-        if gates:result['ABCHIJ'[channel]]=tuple(gates)
+        if gates:result[parts[channel]]=tuple(gates)
     return result
 
 

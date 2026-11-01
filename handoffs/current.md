@@ -47,6 +47,25 @@ Next: S2 gate/Segment extraction modeled on opna_music.
 
 ---
 
+# OPN2 S2: FM state machine and gate extraction (2026-11-01)
+
+native_imports/opn2.py is now a full state machine with the OPNA
+module's interface: build_segments validates the registers CSV and
+produces events/segments with Opn2State snapshots (no SSG, rhythm,
+ADPCM or prescaler domains; SSG-EG operator fields retained). DAC
+enable (0x2B) and DAC data (0x2A) writes are recorded as unmodeled
+writes until the DAC stage, keeping FM gates free of sample traffic.
+analyze_source routes opn2 through the shared FM trace, so states,
+segments and unmodeled CSVs are emitted and analysis_available is
+true. Gate extraction reuses opna_music.build_fm_gates, which now
+takes a part-letter mapping; opn2_music.build_opn2_gates passes the
+MD parts A-F. The provenance manifest records both adaptations.
+Tests: test_opn2_source.py grew a timed key on/off gate case with
+the key-edge audit. Next: S3, the MD target profile and FM 6ch
+projection to MUC.
+
+---
+
 # Native SCC5 default for MUCOMSX (2026-10-29)
 
 User requests SCC VGM -> native SCCA..SCCE by default, preserving shared MSX

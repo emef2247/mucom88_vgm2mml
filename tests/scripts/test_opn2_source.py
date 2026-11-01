@@ -10,7 +10,9 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'py'))
 from conversion_config import inspect_source as inspect_frontend
 from musical_hal.native_imports import analyze_source, inspect_source
-from musical_hal.native_imports.opn2 import register_channel
+from musical_hal.native_imports.opn2 import key_counts, register_channel
+from musical_hal.native_imports.opn2_music import build_opn2_gates
+from musical_hal.native_imports.opna_music import audit_fm_key_edges
 
 OPN2_CLOCK = 7670454
 DCSG_CLOCK = 3579545
@@ -93,7 +95,12 @@ class Opn2InventoryTests(unittest.TestCase):
             root = Path(folder)
             result = analyze_source(raw, root, 'authored')
             self.assertEqual(result['errors'], {})
-            self.assertFalse(result['report']['analysis_available']['opn2'])
+            self.assertTrue(result['report']['analysis_available']['opn2'])
+            self.assertTrue((root / 'authored.native.opn2.states.csv').is_file())
+            self.assertTrue((root / 'authored.native.opn2.segments.csv').is_file())
+            unmodeled = (root / 'authored.native.opn2.unmodeled.csv').read_text()
+            self.assertIn('dac_enable', unmodeled)
+            self.assertIn('dac_data', unmodeled)
             path = root / 'authored.native.opn2.registers.csv'
             self.assertTrue(path.is_file())
             with path.open(newline='', encoding='utf-8') as stream:
@@ -109,6 +116,39 @@ class Opn2InventoryTests(unittest.TestCase):
             self.assertTrue(all(r['chip_type'] == 'YM2612' for r in rows))
             report = json.loads((root / 'authored.native.source.json').read_text())
             self.assertEqual(report['command_counts']['opn2'], 10)
+
+
+NOTE = b''.join((
+    write(0xb0, 0x32),             # ch1 feedback/algorithm
+    write(0xa4, 0x22),             # frequency high latch (block 4)
+    write(0xa0, 0x8d),             # ch1 frequency low
+    write(0x40, 0x20),             # op1 total level
+    write(0x28, 0xf0),             # key on ch1, all operators
+    bytes((0x61, 0xde, 0x02)),     # wait 734 samples
+    write(0x28, 0x00),             # key off
+    bytes((0x61, 0x64, 0x00)),     # wait 100 samples
+))
+
+
+class Opn2GateTests(unittest.TestCase):
+    def test_gate_extraction(self):
+        raw = authored(NOTE, {0x2c: OPN2_CLOCK})
+        with tempfile.TemporaryDirectory() as folder:
+            result = analyze_source(raw, Path(folder), 'note')
+            self.assertEqual(result['errors'], {})
+            analysis = result['opn2']
+            self.assertEqual(key_counts(analysis),
+                             {'key_writes': 2, 'channel_attack_events': 1,
+                              'operator_keyons': 4, 'operator_keyoffs': 4})
+            gates = build_opn2_gates(analysis)
+            self.assertEqual(list(gates), ['A'])
+            (gate,) = gates['A']
+            self.assertEqual((gate.start, gate.end), (0, 734))
+            state = gate.controls[-1].state
+            self.assertEqual(state.fnum, 0x28d)
+            self.assertEqual(state.block, 4)
+            self.assertEqual(state.algorithm, 2)
+            audit_fm_key_edges(analysis, gates)
 
 
 if __name__ == '__main__':

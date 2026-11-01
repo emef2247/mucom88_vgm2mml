@@ -118,9 +118,9 @@
       "source_path": "py/native_imports/opna_music.py",
       "destination_path": "py/musical_hal/native_imports/opna_music.py",
       "source_sha256": "3df2fd59570d8c39e4fbeaae48c80a32dab681c7fca04256bcdd98845fc53f7e",
-      "adapted_sha256": "d4572b7a2a9af1dcd91e9108bd42d782a6569ecd99cd1e2d7257e83b6d44c134",
+      "adapted_sha256": "38ec9c6b3db6b4bf0918a752c00524a121e752d58e1489207953bf528da81279",
       "byte_exact": false,
-      "adaptation": "package-relative imports and normalized LF",
+      "adaptation": "package-relative imports and normalized LF; mucom88-side: build_fm_gates takes a part-letter mapping so OPN2 reuses it with MD parts A-F (no msx counterpart)",
       "source_crlf_count": 204,
       "adapted_crlf_count": 0
     },
@@ -148,9 +148,9 @@
       "source_path": "py/native_imports/source.py",
       "destination_path": "py/musical_hal/native_imports/source.py",
       "source_sha256": "12ab13fb88e21cf16c31f80c6a898b3c9b9ea242320ea030d0e9730fa638c7cf",
-      "adapted_sha256": "59ef15565503b2e1c98fec9303092709bf4d9349169fedbcdb9c0191e9cc922c",
+      "adapted_sha256": "1b2b2535f427361204998cba52d91622032f8a5422a881a3dfcdab1642ea3e65",
       "byte_exact": false,
-      "adaptation": "package-relative imports and normalized LF; provenance resolves MUCOM namespaced manifest; mucom88-side OPN2 (YM2612) inventory and register evidence added (no msx counterpart)",
+      "adaptation": "package-relative imports and normalized LF; provenance resolves MUCOM namespaced manifest; mucom88-side OPN2 (YM2612) inventory and register evidence added (no msx counterpart); OPN2 state machine wired through the shared FM trace",
       "source_crlf_count": 0,
       "adapted_crlf_count": 0
     },
