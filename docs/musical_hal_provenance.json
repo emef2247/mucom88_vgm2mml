@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "source_repository": "emef2247/msx_vgm2mml",
-  "source_commit": "b78d675b92a22956435d91e7e7e11cc12fd88a6d",
+  "source_commit": "a52e52c25603c8db55410b73a848ec7a042efba9",
   "scope": "Target-neutral source model, original-time controls, structural score, optional separate score timing projection and native VGM only",
   "files": [
     {
@@ -197,8 +197,8 @@
     {
       "source_path": "py/native_registers.py",
       "destination_path": "py/musical_hal/native_registers.py",
-      "source_sha256": "32b142e6e1f118ce00fffa4f58139b09d34aa33d73a3e2483d8ad96d7958a044",
-      "adapted_sha256": "5b4f63ebba357147fd58823ec66b87585263f3ea2a8ecb56c1d81b824001f299",
+      "source_sha256": "edd2236ba8dae088d5e63735aab922d49e5a7a90892b3ddf25d00d70d4bdb4b7",
+      "adapted_sha256": "f7239b05c45f5dc76c4607324fe9baacab2a389199db0b99271e5f9e901052f5",
       "byte_exact": false,
       "adaptation": "package-relative imports and normalized LF",
       "source_crlf_count": 0,
@@ -207,8 +207,8 @@
     {
       "source_path": "py/native_source_music.py",
       "destination_path": "py/musical_hal/native_source_music.py",
-      "source_sha256": "f574223464bc9b738e610f2eac3139b837649ac43d67ffd6bdbfc12c1bc902ab",
-      "adapted_sha256": "88571810cad2bd30a1be4de4a4960a8f650ab1c195f0311b43d52cefc228083b",
+      "source_sha256": "ffd8029d56d011a8d7650fdf27359ee647240a9425525c65e69bc6816ef7e123",
+      "adapted_sha256": "cba7b78779dd6c3d8685d73ace9a1bc3df2467d1df1f720c3947bf15f940a1e1",
       "byte_exact": false,
       "adaptation": "package-relative imports and normalized LF; legacy PSG/SCC interpretation delegated to explicit MUCOM host adapter; OPLL interpreted directly from native controls",
       "source_crlf_count": 0,
@@ -247,8 +247,8 @@
     {
       "source_path": "py/vgm_io.py",
       "destination_path": "py/musical_hal/vgm_io.py",
-      "source_sha256": "9bdd2571740caa3f94c254d5265af80a9c4494cd17f6e64bce25183e7c8022a5",
-      "adapted_sha256": "9bdd2571740caa3f94c254d5265af80a9c4494cd17f6e64bce25183e7c8022a5",
+      "source_sha256": "5524c6a9758fe0f2a9b66fcc583052e8d21d7341a3067bff0ff0b0d18b9b062d",
+      "adapted_sha256": "5524c6a9758fe0f2a9b66fcc583052e8d21d7341a3067bff0ff0b0d18b9b062d",
       "byte_exact": true,
       "adaptation": "unchanged snapshot",
       "source_crlf_count": 0,
@@ -271,6 +271,26 @@
       "adapted_sha256": "2fc794d0097fa61824ff5215ee514c5f8b4f6f62d231997f401366c00f1e1b36",
       "byte_exact": true,
       "adaptation": "unchanged source-only normalization with normalized LF; compatibility helpers retained, no renderer dependency",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/nesapu.py",
+      "destination_path": "py/musical_hal/nesapu.py",
+      "source_sha256": "9da56df6c3eed91f1721c943dd6a398a384709d540217c0202fee893bd879575",
+      "adapted_sha256": "d24d5cc2b6d02df73997cf91734826bb69dd39affe722e3f735fa14e6e639feb",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_nesapu.py",
+      "destination_path": "py/musical_hal/native_nesapu.py",
+      "source_sha256": "9e92d2fa8c4b29e05b9380b1ebea0384d1fbe774d3fbe58b91d86f24bd2d88a0",
+      "adapted_sha256": "07108885a5600688957db9d6734ca6866487189339cfc52b57211a224ebd6a6e",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
       "source_crlf_count": 0,
       "adapted_crlf_count": 0
     }
@@ -410,7 +430,7 @@
       }
     ]
   },
-  "previous_source_commit": "f91c5f797221d15b2393a542e226c30886a3fd3d",
+  "previous_source_commit": "b78d675b92a22956435d91e7e7e11cc12fd88a6d",
   "local_files": [
     {
       "destination_path": "py/musical_hal/__init__.py",

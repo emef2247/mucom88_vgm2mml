@@ -104,7 +104,7 @@ class MusicalHalSourceTests(unittest.TestCase):
     def test_provenance_hashes_match_package(self):
         root = Path(__file__).resolve().parents[2]
         provenance = json.loads((root/'docs/musical_hal_provenance.json').read_text())
-        self.assertTrue(provenance['source_commit'].startswith('b78d675'))
+        self.assertTrue(provenance['source_commit'].startswith('a52e52c'))
         for row in provenance['files']:
             with self.subTest(path=row['destination_path']):
                 self.assertEqual(hashlib.sha256((root/row['destination_path']).read_bytes()).hexdigest(),

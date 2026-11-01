@@ -94,3 +94,25 @@ blueprint replay produced positive SSG level writes with tone enabled. An author
 DCSG input unsupported by the default production target still published its native
 reference and compilable blueprint. Listening and full MUCOMSX runtime regression
 are not claimed.
+
+## Re-sync 2026-11-01 (MSX a52e52c)
+
+The namespaced snapshot was advanced from MSX `b78d675` to `a52e52c`
+(claude/nes-apu). `musical_hal_provenance.json` records the new hashes.
+Changes taken: NES APU register decoding in `native_registers`, NES APU
+command/block/header registration and the `native_nesapu` unit hook in
+`native_source_music`, the NES APU clock field in `vgm_io`, and two new
+snapshot files (`nesapu.py`, `native_nesapu.py`) so the hook resolves inside
+the package. The host-adapter delegation in `_legacy_performances` is
+unchanged.
+
+The local shared PSG/SCC engine was also advanced to the same MSX state:
+`py/psg_scc_performance.py` and `py/psg_scc_target.py` were byte-identical
+to MSX `b78d675` and are now byte-identical to `a52e52c`. This carries the
+dedicated PSG noise fix: a noise-only channel (segments without pitch) is
+no longer dropped as rests, and pitchless notes render with a placeholder
+pitch in `py/mml_envelopes.py` (the mixer disables the tone there).
+
+Not ported: the `production_v110` macro dispatch added to MSX
+`mml_macros.py` / `structured_macros.py` after `b78d675`. That is MSX
+production-policy wiring; this repository has no `production_v110` package.

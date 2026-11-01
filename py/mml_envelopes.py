@@ -8,7 +8,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from mml_utils import compact_state_token
-from psg_scc_target import TUNING_HEADER, period_detune, envelope_period_tokens, rendered_period
+from psg_scc_target import SCALES, TUNING_HEADER, period_detune, envelope_period_tokens, rendered_period
 
 
 @dataclass
@@ -235,6 +235,9 @@ def render(segments, chip, bank, raw_ticks=False, waveforms=(), dump_path=None, 
             note_cuts.append(len(body))
             boundaries[note.segment_indices[0]] = len(body)
             seg = note.segment
+            # Pitchless notes (dedicated PSG noise) still need a note token:
+            # the mixer disables the tone there, so any pitch is inaudible.
+            pitch = seg.scale if seg.scale in SCALES else 'c'
             if note.start > cursor:
                 body.append(length_tokens('r', note.start - cursor, raw_ticks))
             cursor = note.start + note.length
@@ -272,7 +275,7 @@ def render(segments, chip, bank, raw_ticks=False, waveforms=(), dump_path=None, 
                 body.append(f's{seg.envelope_shape}')
                 current['hw'] = True
                 current.pop('env', None)
-                body.append(length_tokens(seg.scale, note.length, raw_ticks))
+                body.append(length_tokens(pitch, note.length, raw_ticks))
             else:
                 if current.pop('hw', False):
                     current.pop('volume', None)
@@ -281,11 +284,11 @@ def render(segments, chip, bank, raw_ticks=False, waveforms=(), dump_path=None, 
                 set_value('env', chosen, f'@e{chosen}')
                 if env is not None:
                     set_value('volume', 15, 'v15')
-                    body.append(length_tokens(seg.scale, note.length, raw_ticks))
+                    body.append(length_tokens(pitch, note.length, raw_ticks))
                 else:
                     for index, (volume, duration) in enumerate(note.runs):
                         set_value('volume', volume, f'v{volume}')
-                        body.append(length_tokens(seg.scale, duration, raw_ticks, tie=index > 0))
+                        body.append(length_tokens(pitch, duration, raw_ticks, tie=index > 0))
             boundaries[note.segment_indices[-1] + 1] = len(body)
             dump_rows.append((track, note.start, cursor, 'note', '' if env is None else env,
                               ';'.join(f'{v}:{n}' for v, n in note.runs),
