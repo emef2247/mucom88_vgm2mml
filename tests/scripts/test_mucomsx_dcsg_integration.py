@@ -55,8 +55,8 @@ class MucomsxDcsgIntegrationTests(unittest.TestCase):
         raw_psg=(FIXTURES/'PSGSRC.vgm').read_bytes()[0x100:]
         source=self.out/'MIXED.vgm';source.write_bytes(vgm(raw_scc+raw_psg))
         mixed=convert_vgm(source,self.out/'mixed',song_loop=False,psg_enhance_cents=11)
-        self.assertEqual(mixed['scc_projection_policy'],'all_opna_fm_additive4')
-        self.assertTrue(any(r['source_chip']=='scc' and r['target_chip']=='opna_fm' for r in mixed['routing']))
+        self.assertEqual(mixed['scc_projection_policy'],'native_scc5')
+        self.assertTrue(any(r['source_chip']=='scc' and r['target_chip']=='scc' for r in mixed['routing']))
         text=Path(mixed['muc_path']).read_text(encoding='cp932')
         self.assertNotIn('#SSGExtend On',text)
         self.assertIn('MSXD',mixed['tracks']);self.assertIn('D',mixed['tracks'])

@@ -14,7 +14,6 @@ from psg_opm_fm import FmVoice, tone_tl
 from psg_scc_opm import opm_pitch
 from vgm_reader import parse_vgm
 from test_opna_opm import vgm
-from pcm_mdx import default_generator
 
 
 def body(fm_channels=(), *, mixer=0x38):
@@ -127,29 +126,6 @@ class OpnaSsgOpmTests(unittest.TestCase):
             self.assertEqual([(r['source_domain'], r['target_ch']) for r in assigned],
                              [('ssg', 0), ('ssg', 1), ('ssg', 2)])
             self.assertTrue(mml.is_file())
-
-    @unittest.skipUnless(default_generator().is_file(), 'Build external MDX helper for integration check')
-    def test_fm_ssg_pcm_share_existing_binary_generation(self):
-        from test_opna_adpcm import source as pcm_source
-        raw, _ = pcm_source()
-        mixed = vgm(raw[0x100:-1] + body((0,)) + bytes.fromhex('61 3a 11'))
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            source = root / 'MIXED.vgm'
-            source.write_bytes(mixed)
-            out = root / 'out'
-            _, settings = convert(source, out, dump_passes=True, song_loop=False,
-                pcm_policy='best-effort', normalize_lengths=False)
-            self.assertEqual(settings['channel_allocation']['assigned'], 4)
-            self.assertEqual(settings['pcm_ir']['pdx_distinct_samples'], 1)
-            self.assertGreater((out / 'MIXED.mdx').stat().st_size, 0)
-            self.assertGreater((out / 'MIXED.pdx').stat().st_size, 0)
-            target = json.loads((out / 'MIXED.msm6258_ir.analysis.json').read_text())
-            encoded = (out / target['samples'][0]['file']).read_bytes()
-            pdx = (out / 'MIXED.pdx').read_bytes()
-            start = int.from_bytes(pdx[:4], 'big')
-            length = int.from_bytes(pdx[4:8], 'big')
-            self.assertEqual(pdx[start:start + length], encoded)
 
 
 if __name__ == '__main__':

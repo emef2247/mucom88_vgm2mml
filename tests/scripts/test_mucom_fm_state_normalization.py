@@ -89,24 +89,25 @@ class FmShortStateTests(unittest.TestCase):
         raw=bytearray(authored_vgm(((0xf0,2000),(0,800))))
         pattern=bytes((0x56,0x28,0xf0,0x61,0xd0,0x07))
         start=raw.index(pattern,256)+3
-        raw[start:start+3]=(bytes((0x61,0xe8,0x03,0x56,0xa0,107,0x61,44,0,
-                                   0x56,0xa0,106,0x61,0xbc,0x03)))
+        raw[start:start+3]=(bytes((0x61,0xe8,0x03,0x56,0xa0,107,0x61,0xf4,0x01,
+                                   0x56,0xa0,106,0x61,0xf4,0x01)))
         struct.pack_into('<I',raw,4,len(raw)-4)
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'authored.vgm';source.write_bytes(raw)
-            for enabled,milliseconds in ((True,8),(False,8)):
-                out=root/(str(enabled)+str(milliseconds))
-                report=convert_vgm(source,out,normalize_lengths=enabled,normalization_ms=milliseconds)
+            for enabled,milliseconds,state_ms in ((True,8,1),(True,8,24),(False,8,24)):
+                out=root/(str(enabled)+str(milliseconds)+str(state_ms))
+                report=convert_vgm(source,out,normalize_lengths=enabled,normalization_ms=milliseconds,
+                    **({} if state_ms==1 else dict(fm_state_ms=state_ms)))
                 self.assertEqual(report['status'],'converted')
                 artifacts=list(out.rglob('*.mucom.fm_states.decisions.csv'))
                 self.assertEqual(bool(artifacts),enabled)
                 if enabled:
                     from fm_state_runs import fm_short_state_samples
-                    self.assertEqual(report['normalization']['fm_short_states']['threshold_samples'],44)
-                    self.assertEqual(report['normalization']['fm_short_states']['threshold_ms'],1)
+                    self.assertEqual(report['normalization']['fm_short_states']['threshold_samples'],fm_short_state_samples(state_ms))
+                    self.assertEqual(report['normalization']['fm_short_states']['threshold_ms'],state_ms)
                     with artifacts[0].open(newline='',encoding='utf-8') as stream:
                         rows=list(csv.DictReader(stream))
-                    self.assertEqual(sum(row['action']=='omit_short_state' for row in rows),1)
+                    self.assertEqual(sum(row['action']=='omit_short_state' for row in rows),int(state_ms==24))
 
 
     def test_mapped_opm_pitch_state_uses_same_filter(self):
@@ -114,16 +115,19 @@ class FmShortStateTests(unittest.TestCase):
         import tempfile
         from opna_muc import convert_vgm
         from test_opm_opna import tone, write, wait, vgm
-        data=(tone()+write(8,120)+wait(1000)+write(0x30,4)+wait(44)
+        data=(tone()+write(8,120)+wait(1000)+write(0x30,4)+wait(500)
               +write(0x30,0)+wait(1000)+write(8,0)+wait(1000))
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);source=root/'mapped.vgm';source.write_bytes(vgm(data,3579545))
-            out=root/'out';report=convert_vgm(source,out,song_loop=False)
-            self.assertEqual(report['status'],'converted')
-            with next(out.rglob('*.mucom.fm_states.decisions.csv')).open(newline='',encoding='utf-8') as stream:
-                rows=list(csv.DictReader(stream))
-            self.assertEqual(sum(row['action']=='omit_short_state' for row in rows),1)
-            self.assertTrue((out/'mapped.opm.segments.csv').is_file())
+            for state_ms in (1,24):
+                out=root/str(state_ms)
+                report=convert_vgm(source,out,song_loop=False,fm_state_ms=state_ms)
+                self.assertEqual(report['status'],'converted')
+                with next(out.rglob('*.mucom.fm_states.decisions.csv')).open(newline='',encoding='utf-8') as stream:
+                    rows=list(csv.DictReader(stream))
+                self.assertEqual(sum(row['action']=='omit_short_state' for row in rows),int(state_ms==24))
+                self.assertEqual(report['normalization']['fm_short_states']['threshold_ms'],state_ms)
+                self.assertTrue((out/'mapped.opm.segments.csv').is_file())
 
 
 if __name__=='__main__':unittest.main()

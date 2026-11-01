@@ -93,6 +93,31 @@ class PsgMucomTests(unittest.TestCase):
         self.assertNotIn('E255,',items[1][2])
         self.assertEqual(repr(native),before)
 
+    def test_fixed_tone_inactive_reset_and_period_continue_before_ssg_projection(self):
+        data = (w(0,32)+w(1,1)+w(7,0x3e)+w(8,15)+wait(1000)
+                +w(13,10)+wait(500)+w(0,32)+wait(500)+w(8,8)+wait(1000))
+        raw, events, native = source(data)
+        original = repr(native)
+        with tempfile.TemporaryDirectory() as directory:
+            prefix = Path(directory)/'authored'
+            notes = musical_notes(native, dump_prefix=prefix)
+            sounding = [n for n in notes[0] if not n.rest]
+            self.assertEqual(len(sounding), 1)
+            self.assertEqual(sounding[0].runs, [(15,2000),(8,1000)])
+            report = json.loads(Path(str(prefix)+'.continuation.json').read_text())
+            self.assertEqual(report['tick_clock_hz'],44100)
+            self.assertEqual(report['inactive_reset_joins'],1)
+            self.assertEqual(report['unchanged_period_joins'],1)
+            controls = Path(str(prefix)+'.performance.controls.csv').read_text()
+            self.assertIn('evS',controls)
+            self.assertIn('fCA',controls)
+        items = project_ssg(native,events,raw,source_command=0xa0,
+            effective_source_clock_hz=native.effective_clock_hz,
+            global_controls=[],musical_notes=notes)['D']
+        self.assertEqual(len({item[3] for item in items}),1)
+        self.assertEqual(sum('E255,' in item[2] for item in items),1)
+        self.assertEqual(repr(native),original)
+
     def test_shared_notes_do_not_reattack_held_hardware_envelope(self):
         data=(w(0,32)+w(1,1)+w(7,0x3e)+w(11,50)+w(13,10)+w(8,16)
               +wait(1000)+w(0,64)+w(1,1)+wait(1000))

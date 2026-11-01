@@ -21,7 +21,6 @@ from opm_target_vgm import write_target_vgm
 from psg_scc_conversion import convert
 from psg_scc_opm import project
 from vgm_timing import command_times
-from pcm_mdx import default_generator
 
 
 def jittered_psg(path):
@@ -90,18 +89,6 @@ class TargetVgmTests(unittest.TestCase):
                 self.assertEqual(source.read_bytes(), original)
                 self.assertNotEqual(before.read_bytes(), after.read_bytes())
 
-    @unittest.skipUnless(default_generator().is_file(), 'Build external MDX helper for integration checks')
-    def test_normalized_psg_target_survives_semantic_roundtrip(self):
-        from scripts.psg_scc_to_mdx import compile_and_verify
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            source = root / 'jitter.vgm'
-            jittered_psg(source)
-            mml, plan = convert(source, root / 'out')
-            self.assertTrue(plan.structured_context.normalization['adopted'])
-            report = compile_and_verify(default_generator(), mml, plan, root / 'out', 'returned')
-            self.assertTrue(report['passed'], report)
-            self.assertTrue(report['key_commands_match'])
 
     def test_psg_normalization_checks_original_boundaries_and_preserves_source(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -224,17 +211,6 @@ class TargetVgmTests(unittest.TestCase):
             self.assertEqual(report['known_state_mismatches'], 0)
             self.assertGreater(report['key_point_state_mismatches'], 0)
             self.assertFalse(report['passed'])
-
-    def test_frontend_supports_register_baseline_and_no_loops(self):
-        source = ROOT/'tests/fixtures/public/psg/short_pulses/short_pulses.vgm'
-        with tempfile.TemporaryDirectory() as tmp:
-            for flags in (['--notation','registers'], ['--no-loops']):
-                out = Path(tmp)/flags[-1]
-                run = subprocess.run([sys.executable,str(ROOT/'vgm2mml.py'),str(source),
-                                      '--target','opm','--outdir',str(out),*flags],capture_output=True,text=True)
-                self.assertEqual(run.returncode,0,run.stderr)
-                self.assertEqual(sorted(p.name for p in out.iterdir()),
-                                 ['short_pulses.conversion.json', 'short_pulses.mdx.mml', 'short_pulses.mdx.normalization.json'])
 
 
 if __name__ == '__main__':

@@ -1,3 +1,9 @@
+## Historical MDX tooling scope
+
+MDX tool commands below are retained as historical/reference context. These
+scripts and their external toolchain are no longer shipped here; use
+x68k_vgm2mml for MDX generation, compilation and inspection.
+
 # x68k_vgm2mmlとのコード同期
 
 ソース解析・音楽的構造化・時刻割当は、意味が共通する範囲で同期します。

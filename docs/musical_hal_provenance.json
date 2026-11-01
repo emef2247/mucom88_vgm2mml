@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "source_repository": "emef2247/msx_vgm2mml",
+  "source_commit": "b78d675b92a22956435d91e7e7e11cc12fd88a6d",
+  "scope": "Target-neutral source model, original-time controls, structural score, optional separate score timing projection and native VGM only",
+  "files": [
+    {
+      "source_path": "py/hierarchical_loops.py",
+      "destination_path": "py/musical_hal/hierarchical_loops.py",
+      "source_sha256": "d79a89919896521e3fdbc9b6513efbda6437cc30f386f489ad8be9645ccdc43d",
+      "adapted_sha256": "d79a89919896521e3fdbc9b6513efbda6437cc30f386f489ad8be9645ccdc43d",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/huc6280.py",
+      "destination_path": "py/musical_hal/huc6280.py",
+      "source_sha256": "dd0524da26e7d88c93deb3e8d393c7cda054241102f428f8500a952347499934",
+      "adapted_sha256": "c28c450bc6fbedfb80168fa33ab3c70dd7454dd9eb7a65f7b6b790e10309e2aa",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/loop_structure.py",
+      "destination_path": "py/musical_hal/loop_structure.py",
+      "source_sha256": "6ba4f9b6c24072ef973e23af429fcfcda0597be61b753f49fb249be8ed27e942",
+      "adapted_sha256": "3aa6cd63620bbb9098e5fbc0178d56edbd011f1321b89e8d494efdcc7a30f787",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_huc6280.py",
+      "destination_path": "py/musical_hal/native_huc6280.py",
+      "source_sha256": "539720f587e460c4c973fe970706d3888230ea9b208e87df16d34a6d9621644a",
+      "adapted_sha256": "cf9069244802c6355c9c1bcc50523fdb3b1193027d9ce8d9ddfafc7b70539a20",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/__init__.py",
+      "destination_path": "py/musical_hal/native_imports/__init__.py",
+      "source_sha256": "4d1a01ecb36e962ae48b82542da00c5857f8d5beaaa53aebc6cb3c1c663dbe9b",
+      "adapted_sha256": "4d1a01ecb36e962ae48b82542da00c5857f8d5beaaa53aebc6cb3c1c663dbe9b",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/c140.py",
+      "destination_path": "py/musical_hal/native_imports/c140.py",
+      "source_sha256": "9749ba80569c32fee2cc2abbbbeb579bb469a50a89d24d916f8dc4b12b4887e1",
+      "adapted_sha256": "9749ba80569c32fee2cc2abbbbeb579bb469a50a89d24d916f8dc4b12b4887e1",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/dcsg.py",
+      "destination_path": "py/musical_hal/native_imports/dcsg.py",
+      "source_sha256": "ce025aefa2da98cba2393a28fac8a0f6d8ace7f290ad93bd7b40638bbf1e8317",
+      "adapted_sha256": "ce025aefa2da98cba2393a28fac8a0f6d8ace7f290ad93bd7b40638bbf1e8317",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/msm6258.py",
+      "destination_path": "py/musical_hal/native_imports/msm6258.py",
+      "source_sha256": "923c8a91e580a31a8b4b2563b396c67c9dca2b0bd43fb1ec15b1d8f5ce961606",
+      "adapted_sha256": "923c8a91e580a31a8b4b2563b396c67c9dca2b0bd43fb1ec15b1d8f5ce961606",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/msm6295.py",
+      "destination_path": "py/musical_hal/native_imports/msm6295.py",
+      "source_sha256": "2ece6fdd6a52151c6ffa4c945aed1c567877e712812a01ef0d2a48d7fe99f686",
+      "adapted_sha256": "2ece6fdd6a52151c6ffa4c945aed1c567877e712812a01ef0d2a48d7fe99f686",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/opm.py",
+      "destination_path": "py/musical_hal/native_imports/opm.py",
+      "source_sha256": "c8626f3a6449a685d3a3292e903c3977bbbea516d92f38c817cedc103be5a214",
+      "adapted_sha256": "c8626f3a6449a685d3a3292e903c3977bbbea516d92f38c817cedc103be5a214",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/opna.py",
+      "destination_path": "py/musical_hal/native_imports/opna.py",
+      "source_sha256": "b43e3831ff42b1cfd2ff0f7284c84d3e63aff34a12a66f69cbe32c3e3e463d6e",
+      "adapted_sha256": "b43e3831ff42b1cfd2ff0f7284c84d3e63aff34a12a66f69cbe32c3e3e463d6e",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/opna_music.py",
+      "destination_path": "py/musical_hal/native_imports/opna_music.py",
+      "source_sha256": "3df2fd59570d8c39e4fbeaae48c80a32dab681c7fca04256bcdd98845fc53f7e",
+      "adapted_sha256": "d4572b7a2a9af1dcd91e9108bd42d782a6569ecd99cd1e2d7257e83b6d44c134",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 204,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/pcm_stream.py",
+      "destination_path": "py/musical_hal/native_imports/pcm_stream.py",
+      "source_sha256": "dccd763881b985f9ae7ecbd9e27785008d43fd3ce6dfe3bc8d42004ee37ba933",
+      "adapted_sha256": "dccd763881b985f9ae7ecbd9e27785008d43fd3ce6dfe3bc8d42004ee37ba933",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/segapcm.py",
+      "destination_path": "py/musical_hal/native_imports/segapcm.py",
+      "source_sha256": "0271ce0971d9c088b16669d105647f61a9e8ced0263394e97c60f3fafc700751",
+      "adapted_sha256": "0271ce0971d9c088b16669d105647f61a9e8ced0263394e97c60f3fafc700751",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/source.py",
+      "destination_path": "py/musical_hal/native_imports/source.py",
+      "source_sha256": "12ab13fb88e21cf16c31f80c6a898b3c9b9ea242320ea030d0e9730fa638c7cf",
+      "adapted_sha256": "5c54a0da8f4a6da5e9083a36a491c466bd39f271e134d2cda931308fff398f2a",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF; provenance resolves MUCOM namespaced manifest",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/vgm_io.py",
+      "destination_path": "py/musical_hal/native_imports/vgm_io.py",
+      "source_sha256": "a1eefb71bb8f47f1245c0a5b3b82b37c32b847884fece2ef67a62d00610647bf",
+      "adapted_sha256": "a1eefb71bb8f47f1245c0a5b3b82b37c32b847884fece2ef67a62d00610647bf",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/vgm_loop.py",
+      "destination_path": "py/musical_hal/native_imports/vgm_loop.py",
+      "source_sha256": "f820e63f8bfc9788de518a54c33ace888cddc29703cffd16ef2749386d1b4089",
+      "adapted_sha256": "f820e63f8bfc9788de518a54c33ace888cddc29703cffd16ef2749386d1b4089",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_imports/vgm_timing.py",
+      "destination_path": "py/musical_hal/native_imports/vgm_timing.py",
+      "source_sha256": "7505d813a7466f0bfe0554bd0a8de130f48bd97dbfddce4b95499c17ffd0aa29",
+      "adapted_sha256": "2a4ec1bcede6012ddf4442105dbe356da8776f3ea0d14683f0e50bc8ea00aa55",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 109,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_music.py",
+      "destination_path": "py/musical_hal/native_music.py",
+      "source_sha256": "0625ed3dfd64fe1277e1daae8f8428ec99302b840c0fee984df16760018bcb52",
+      "adapted_sha256": "0625ed3dfd64fe1277e1daae8f8428ec99302b840c0fee984df16760018bcb52",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_registers.py",
+      "destination_path": "py/musical_hal/native_registers.py",
+      "source_sha256": "32b142e6e1f118ce00fffa4f58139b09d34aa33d73a3e2483d8ad96d7958a044",
+      "adapted_sha256": "5b4f63ebba357147fd58823ec66b87585263f3ea2a8ecb56c1d81b824001f299",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_source_music.py",
+      "destination_path": "py/musical_hal/native_source_music.py",
+      "source_sha256": "f574223464bc9b738e610f2eac3139b837649ac43d67ffd6bdbfc12c1bc902ab",
+      "adapted_sha256": "88571810cad2bd30a1be4de4a4960a8f650ab1c195f0311b43d52cefc228083b",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF; legacy PSG/SCC interpretation delegated to explicit MUCOM host adapter; OPLL interpreted directly from native controls",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/native_vgm.py",
+      "destination_path": "py/musical_hal/native_vgm.py",
+      "source_sha256": "a3384f838f48ce4280df58f9ae6ed8452aacc36e0eadbfbea71431683680d631",
+      "adapted_sha256": "cbf638c7d69b431e4e263e4a140f3b322f5ca55bb22375a36b6a04fe2b9e3229",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/score_structure.py",
+      "destination_path": "py/musical_hal/score_structure.py",
+      "source_sha256": "47aff6c3aceeae75f081baab1707c593824c05b216249726531b41866350c28a",
+      "adapted_sha256": "e1748c0ecee8d8855ad10ecc3c561c8c83bed72b39f17257ccf336b554fd45cb",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/source_loop_plan.py",
+      "destination_path": "py/musical_hal/source_loop_plan.py",
+      "source_sha256": "8717401bc42bc71465ccb526cf9a51c723ee6a0021969ed39f2ee83b5f4e399b",
+      "adapted_sha256": "6481745dc6e9070b67dd5f05ba1fc8b7a3c64fb32b13cee5a089f385f48806cc",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF; neutral Unit extracted from upstream performed_patterns without target renderers",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/vgm_io.py",
+      "destination_path": "py/musical_hal/vgm_io.py",
+      "source_sha256": "9bdd2571740caa3f94c254d5265af80a9c4494cd17f6e64bce25183e7c8022a5",
+      "adapted_sha256": "9bdd2571740caa3f94c254d5265af80a9c4494cd17f6e64bce25183e7c8022a5",
+      "byte_exact": true,
+      "adaptation": "unchanged snapshot",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/vgm_timing.py",
+      "destination_path": "py/musical_hal/vgm_timing.py",
+      "source_sha256": "6278e50e19966109e06033f491d5556991d868362a1fd7a9e9544ada391b1df1",
+      "adapted_sha256": "7389b7c4879775df91234974ed33676936a4d685616bf3d8b0fb69b48c4f2aa5",
+      "byte_exact": false,
+      "adaptation": "package-relative imports and normalized LF",
+      "source_crlf_count": 79,
+      "adapted_crlf_count": 0
+    },
+    {
+      "source_path": "py/score_normalization.py",
+      "destination_path": "py/musical_hal/score_normalization.py",
+      "source_sha256": "2fc794d0097fa61824ff5215ee514c5f8b4f6f62d231997f401366c00f1e1b36",
+      "adapted_sha256": "2fc794d0097fa61824ff5215ee514c5f8b4f6f62d231997f401366c00f1e1b36",
+      "byte_exact": true,
+      "adaptation": "unchanged source-only normalization with normalized LF; compatibility helpers retained, no renderer dependency",
+      "source_crlf_count": 0,
+      "adapted_crlf_count": 0
+    }
+  ],
+  "intentional_destination_dependencies": [
+    "host_adapters.py: local vgm_reader.parse_vgm, psg.build_segments, scc.build_segments, psg_scc_performance.analyze/settings; used only for legacy PSG/SCC source interpretation/settings"
+  ],
+  "limitations": [
+    "No MUCOM target mapping is defined by this source package",
+    "PCM register/data/stream packets are preserved, not rendered or bank-converted",
+    "Unmodeled native behavior remains explicit; hardware equivalence not asserted",
+    "Distinct per-instance clocks require a structured extra-header projection; looped wait overrides remain explicit serializer limitations",
+    "PSG/SCC source musical interpretation uses the MUCOM host modules through an explicit adapter; no sibling checkout or import-path mutation"
+  ],
+  "inherited_native_import_provenance": {
+    "scope": "source analysis only; no MDX/MUC/PDX projection",
+    "files": [
+      {
+        "module": "opm",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/opm.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "c8626f3a6449a685d3a3292e903c3977bbbea516d92f38c817cedc103be5a214",
+        "imported_sha256": "c8626f3a6449a685d3a3292e903c3977bbbea516d92f38c817cedc103be5a214",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "opna",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/opna.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "b43e3831ff42b1cfd2ff0f7284c84d3e63aff34a12a66f69cbe32c3e3e463d6e",
+        "imported_sha256": "b43e3831ff42b1cfd2ff0f7284c84d3e63aff34a12a66f69cbe32c3e3e463d6e",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "dcsg",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/dcsg.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "9d868a873a5925647d1b8324eeedc1241cfc458438139cad0915485e89fe013f",
+        "imported_sha256": "ce025aefa2da98cba2393a28fac8a0f6d8ace7f290ad93bd7b40638bbf1e8317",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "msm6258",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/msm6258.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "3d085695232520e07e4bbb9482b8fa7fa945fa63297a0918ed6bab694b1cf8de",
+        "imported_sha256": "923c8a91e580a31a8b4b2563b396c67c9dca2b0bd43fb1ec15b1d8f5ce961606",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "msm6295",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/msm6295.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "?? py/msm6295.py",
+        "source_sha256": "0df7e7e1f71826b50a3c08fc7d99a94d209030cabfca12a9d7e6c2cfe3bbc293",
+        "imported_sha256": "2ece6fdd6a52151c6ffa4c945aed1c567877e712812a01ef0d2a48d7fe99f686",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "segapcm",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/segapcm.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "0271ce0971d9c088b16669d105647f61a9e8ced0263394e97c60f3fafc700751",
+        "imported_sha256": "0271ce0971d9c088b16669d105647f61a9e8ced0263394e97c60f3fafc700751",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "c140",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/c140.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "be02734dd81e875d3eeecfd14c9b2005ace4e852ed618dc96ffc906f9e90d55e",
+        "imported_sha256": "9749ba80569c32fee2cc2abbbbeb579bb469a50a89d24d916f8dc4b12b4887e1",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "pcm_stream",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/pcm_stream.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "dccd763881b985f9ae7ecbd9e27785008d43fd3ce6dfe3bc8d42004ee37ba933",
+        "imported_sha256": "dccd763881b985f9ae7ecbd9e27785008d43fd3ce6dfe3bc8d42004ee37ba933",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "vgm_io",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/vgm_io.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "M py/vgm_io.py",
+        "source_sha256": "a1eefb71bb8f47f1245c0a5b3b82b37c32b847884fece2ef67a62d00610647bf",
+        "imported_sha256": "a1eefb71bb8f47f1245c0a5b3b82b37c32b847884fece2ef67a62d00610647bf",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "vgm_timing",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/vgm_timing.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "0f8db110acd235fe70882de385f5021ddaf84d72e58ec4c5bd4402db494d2e67",
+        "imported_sha256": "7505d813a7466f0bfe0554bd0a8de130f48bd97dbfddce4b95499c17ffd0aa29",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "vgm_loop",
+        "source_project": "x68k_vgm2mml",
+        "source_path": "py/vgm_loop.py",
+        "source_revision": "64fc049e324f21dbf168634d0b6c335881e989a8",
+        "source_worktree_status": "clean",
+        "source_sha256": "f820e63f8bfc9788de518a54c33ace888cddc29703cffd16ef2749386d1b4089",
+        "imported_sha256": "f820e63f8bfc9788de518a54c33ace888cddc29703cffd16ef2749386d1b4089",
+        "adaptation": "package-relative imports only"
+      },
+      {
+        "module": "opna_music",
+        "source_project": "mucom88_vgm2mml",
+        "source_path": "py/opna_music.py",
+        "source_revision": "ee839abcf3b9967550cf7896b818cd39ba145ac9",
+        "source_worktree_status": "clean",
+        "source_sha256": "3df2fd59570d8c39e4fbeaae48c80a32dab681c7fca04256bcdd98845fc53f7e",
+        "imported_sha256": "3df2fd59570d8c39e4fbeaae48c80a32dab681c7fca04256bcdd98845fc53f7e",
+        "adaptation": "package-relative imports only"
+      }
+    ]
+  },
+  "previous_source_commit": "f91c5f797221d15b2393a542e226c30886a3fd3d",
+  "local_files": [
+    {
+      "destination_path": "py/musical_hal/__init__.py",
+      "sha256": "99546baa3167f02aaea5351638ac97640a099f70376ed5d7a27c14e6403fe933",
+      "purpose": "public package exports"
+    },
+    {
+      "destination_path": "py/musical_hal/host_adapters.py",
+      "sha256": "7696a2f798993f5d0cdfd57bbce18a3ab46618708f7632195618a320235f76c8",
+      "purpose": "explicit MUCOM PSG/SCC source host contract"
+    },
+    {
+      "destination_path": "py/musical_hal/loop_units.py",
+      "sha256": "c2e6791bd624cfbf177114caa2a95fd171118950355fa848b07bc48d80eb6464",
+      "purpose": "neutral Unit dataclass extracted from upstream py/performed_patterns.py; no target renderer dependencies"
+    }
+  ]
+}

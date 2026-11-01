@@ -1,7 +1,7 @@
 """Native MUCOM rendering of shared source musical-unit repeat plans."""
 import re
 from musical_structure import source_plan
-from source_loop_plan import expanded_tokens
+from source_loop_plan import expanded_tokens, SourceLoopPlan
 
 NATIVE_REPEAT_DEPTH = 16
 
@@ -77,16 +77,53 @@ def _normalized_slice_keys(unit, keys, lengths):
     return tuple((unit.kind, key, length) for key, length in zip(keys, lengths))
 
 
+def planning_plan(keys, *, legacy_loops=False, score_keys=None):
+    """Nominate motifs separately from exact native MUC command validation."""
+    exact = (SourceLoopPlan.build(keys, strategy='retained') if legacy_loops else source_plan(keys))
+    if score_keys is None or legacy_loops:
+        return exact
+    from musical_hal.score_structure import GuidedLoopPlan
+    return GuidedLoopPlan(source_plan(score_keys), exact)
+
+
+def score_slice_keys(unit, *, source_clock_hz=7987200):
+    """Project observed FM pitch to score candidates; preserve other domains."""
+    from musical_hal.score_structure import midi_pitch
+    result = []
+    for index, key in enumerate(unit.control_keys):
+        if (unit.kind != 'fm' or not isinstance(key, tuple) or len(key) != 2
+                or not isinstance(key[1], tuple) or len(key[1]) != 2
+                or not isinstance(key[1][1], tuple) or len(key[1][1]) < 13):
+            return tuple(unit.control_keys)
+        duration, (action, state) = key
+        fnum, block, divisor = state[1], state[2], state[12]
+        frequency = (None if fnum is None or block is None or not divisor else
+            fnum * 2**block * source_clock_hz * 6 / divisor / (144 * 2**20))
+        result.append((duration, action, midi_pitch(frequency), state[0]))
+    return tuple(result)
+
+
 def structure_track(units, plain_commands, slice_commands, slice_keys, slice_durations,
-                    *, loops=True, normalize_lengths=False):
+                    *, loops=True, normalize_lengths=False, legacy_loops=False,
+                    score_guided_loops=False, source_clock_hz=7987200):
     """Retain native catalogs alongside explicitly accepted timing views."""
+    guided = score_guided_loops and not legacy_loops
+    def score_slices_for(unit, keys):
+        score=score_slice_keys(unit,source_clock_hz=source_clock_hz)
+        return score if len(score)==len(keys) else tuple(keys)
+    score_slices = tuple(score_slices_for(unit,keys) for unit,keys in zip(units,slice_keys))
+    score_outer = tuple((unit.kind, unit.end-unit.start, keys) if unit.kind=='fm' else unit.key
+        for unit,keys in zip(units,score_slices))
+    def build(keys, score_keys):
+        return planning_plan(keys,legacy_loops=legacy_loops,score_keys=score_keys if guided else None)
     outer_keys=tuple(unit.key for unit in units)
-    outer=source_plan(outer_keys)
-    outer_timing=source_plan((key,tuple(lengths)) for key,lengths in zip(outer_keys,slice_durations))
+    outer=build(outer_keys,score_outer)
+    outer_timing=build(tuple((key,tuple(lengths)) for key,lengths in zip(outer_keys,slice_durations)),
+        tuple((key,tuple(lengths)) for key,lengths in zip(score_outer,slice_durations)))
     normalized_keys=tuple(_normalized_slice_keys(unit,tuple(keys),lengths)
         for unit,keys,lengths in zip(units,slice_keys,slice_durations))
     normalized_outer_keys=tuple((unit.kind,keys) for unit,keys in zip(units,normalized_keys))
-    normalized_outer=source_plan(normalized_outer_keys) if normalize_lengths else None
+    normalized_outer=build(normalized_outer_keys,tuple(zip(score_outer,map(tuple,slice_durations)))) if normalize_lengths else None
     nested_commands,inner_rows,children,timing_children,normalized_children=[],[],[],[],[]
     cache={}
     for index,(commands,keys,lengths) in enumerate(zip(slice_commands,slice_keys,slice_durations)):
@@ -96,11 +133,17 @@ def structure_track(units, plain_commands, slice_commands, slice_keys, slice_dur
         rendered=[]
         plans={}
         for basis,candidate_keys in views:
-            if candidate_keys not in cache:cache[candidate_keys]=source_plan(candidate_keys)
-            child=cache[candidate_keys];plans[basis]=child
+            guide_keys=score_slices[index] if basis=='native' else tuple(zip(score_slices[index],lengths))
+            cache_key=(candidate_keys,guide_keys)
+            if cache_key not in cache:cache[cache_key]=build(candidate_keys,guide_keys)
+            child=cache[cache_key]
+            if guided:
+                from musical_hal.score_structure import GuidedLoopPlan
+                child=GuidedLoopPlan(child.guide,child.exact)
+            plans[basis]=child
             text,rows=child.render(commands)
-            _native_repeat_members(candidate_keys,rows)
-            if basis!='normalized':_native_repeat_members(keys,rows)
+            _native_repeat_members(child.keys,rows)
+            if basis!='normalized' and not guided:_native_repeat_members(keys,rows)
             if expanded_tokens(text)!=expanded_tokens(' '.join(commands)):
                 raise AssertionError('Inner musical structuring changed projected commands')
             rendered.append((text,rows,basis))
@@ -114,7 +157,7 @@ def structure_track(units, plain_commands, slice_commands, slice_keys, slice_dur
     plain=' '.join(plain_commands)
     outer_views=[('native',outer,outer_keys),('target_timing',outer_timing,outer_keys)]
     if normalize_lengths:outer_views.append(('normalized',normalized_outer,normalized_outer_keys))
-    details=dict(plain=plain,inner_rows=inner_rows,children=children,
+    details=dict(score_guided_loops=guided,legacy_loops=bool(legacy_loops),plain=plain,inner_rows=inner_rows,children=children,
         feasible_children=timing_children,feasible_outer=outer_timing,
         normalized_children=normalized_children,normalized_outer=normalized_outer,
         normalized_slice_keys=normalized_keys if normalize_lengths else ())
@@ -127,7 +170,7 @@ def structure_track(units, plain_commands, slice_commands, slice_keys, slice_dur
         for nesting,commands in (('outer_only',plain_commands),('nested',nested_commands)):
             text,rows=plan.render(commands)
             before_limit=text
-            _native_repeat_members(equality_keys,rows)
+            _native_repeat_members(plan.keys,rows)
             text,limits=limit_repeat_depth(text)
             if expanded_tokens(text)!=expanded_tokens(plain):
                 raise AssertionError('Musical structuring changed projected commands')
@@ -135,8 +178,10 @@ def structure_track(units, plain_commands, slice_commands, slice_keys, slice_dur
     # Stable ties retain the native view and existing outer-only spelling.
     result,rows,limits,basis,nesting,before_limit=min(candidates,key=lambda item:len(item[0]))
     projections={}
-    for candidate_basis,_,_ in outer_views:
+    for candidate_basis,candidate_plan,_ in outer_views:
         own=min((item for item in candidates if item[3]==candidate_basis),key=lambda item:len(item[0]))
+        if guided:
+            candidate_plan.render(plain_commands if own[4]=='outer_only' else nested_commands)
         projections[candidate_basis]=[dict(row,planning_basis=candidate_basis,
             target_selected=(candidate_basis==basis and own[4]==nesting)) for row in own[1]]
     rows=[dict(row,planning_basis=basis,target_selected=True) for row in rows]

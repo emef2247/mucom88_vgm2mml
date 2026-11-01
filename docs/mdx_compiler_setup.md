@@ -1,3 +1,9 @@
+## Historical MDX tooling scope
+
+MDX tool commands below are retained as historical/reference context. These
+scripts and their external toolchain are no longer shipped here; use
+x68k_vgm2mml for MDX generation, compilation and inspection.
+
 # Persistent MXC / run68 setup (WSL)
 
 FM-only export defaults to MXC. Keep external tools in ignored `.tools/`,

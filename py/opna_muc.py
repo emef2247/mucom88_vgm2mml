@@ -363,7 +363,8 @@ def group_release_controls(units):
     flush();return result
 
 
-def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,normalize_lengths=False):
+def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,normalize_lengths=False,
+                 legacy_loops=False,score_guided_loops=False,source_clock_hz=TARGET_CLOCK_HZ):
     participating=loop_start is not None and any(u.end>loop_start for u in units)
     full=[];cursor=0;marked=False;tie_before_marker=set()
     def rest(stop):
@@ -415,7 +416,8 @@ def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,no
         slice_commands.append(tuple(pieces));slice_keys.append(control_keys(unit))
     slice_durations=[tuple(clock[stop]-clock[start] for start,stop,_,_ in unit.slices)
                      if unit.kind!='song_loop' else (0,) for unit in full]
-    plan,folds,text,detail=structure_track(full,commands,slice_commands,slice_keys,slice_durations,loops=loops,normalize_lengths=normalize_lengths)
+    plan,folds,text,detail=structure_track(full,commands,slice_commands,slice_keys,slice_durations,loops=loops,normalize_lengths=normalize_lengths,
+        legacy_loops=legacy_loops,score_guided_loops=score_guided_loops,source_clock_hz=source_clock_hz)
     compacted,decisions=compact(text,units[0].part,durations=loops)
     native_depth=repeat_depth(compacted)
     if native_depth>16:raise ConversionError('Native repeat nesting exceeds 16 after target compaction')
@@ -427,7 +429,8 @@ def render_track(units,end,loop_start,clock,*,loops=True,seam=None,audit=None,no
 
 def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 timing_bound_ms=8.0,loops=True,song_loop=True,normalize_lengths=True,normalization_ms=8.0,fm_state_ms=1.0,
-                pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="auto",pcm_profile="standard"):
+                pcm_only=False,pcm_policy="strict",force=False,opm_channel_policy="auto",pcm_profile="standard",
+                software_volume_curves=True,legacy_loops=False,score_guided_loops=False,enhance_macros=True):
     from pcm_profiles import get_profile
     profile=get_profile(pcm_profile)
     source,output=Path(input_path),Path(outdir)
@@ -440,6 +443,8 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 native_target_clock_hz=TARGET_CLOCK_HZ,source_passes=str(passes),diagnostics=[],
                 pcm_profile=dict(requested=profile.name,applicable=False,
                     reason='Only derived MSM6258/SegaPCM ADPCM-B uses the profile; native OPNA ADPCM bytes/rate are retained'),
+                options=dict(software_volume_curves=bool(software_volume_curves),legacy_loops=bool(legacy_loops),
+                    score_guided_loops=bool(score_guided_loops and not legacy_loops),enhance_macros=bool(enhance_macros)),
                 tracks={},fm_projection=[],fm_initial_pitch_resolution=[],pcm_bindings=[],stage_timings={},limits=[
                 'Source State/Segments are intact; MUC timing is target-only.',
                 'Native startup latency, envelope/acoustic identity and listening are separate checks.'])
@@ -628,7 +633,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             from psg_mucom import build_source,musical_notes,dump_musical_notes
             psg=build_source(raw,events,end,force=force,omissions=force_omissions)
             psg.dump(passes,stem)
-            psg_notes=musical_notes(psg)
+            psg_notes=musical_notes(psg,dump_prefix=passes/(stem+'.psg_ssg'),software_volume_curves=software_volume_curves)
             dump_musical_notes(psg,psg_notes,passes,stem)
             native_active=any(s.scale!='r' and s.vgmticks_end>s.vgmticks
                 for channel in ssg.segments.values() for s in channel)
@@ -646,7 +651,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
                 target='OPNA SSG',via_opm=False,source_ir_unchanged=True,
                 source_segments_file=stem+'.psg_ssg.source.segments.csv',
                 musical_notes_file=stem+'.psg_ssg.music.csv',
-                musical_interpretation='shared MSX extract_notes on original source-sample view',
+                musical_interpretation='shared MSX performance/continuation on source-sample view',
                 musical_note_count=sum(not n.rest for rows in psg_notes.values() for n in rows))
             report['diagnostics'].append('PSG tone/noise/envelope periods map directly to SSG; AY/YM amplitude law, analog output and envelope phase are not certified')
         ssg_controls=[]
@@ -874,11 +879,13 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
         progress('musical_structure_and_rendering')
         rows=[];inner_rows=[];control_rows=[];candidate_rows=[];compaction=[]
         plain_lines=lines[:];uncompacted_lines=lines[:];before_limit_lines=lines[:]
+        macro_tracks={};macro_header=lines[:]
         for part,units in sorted(tracks.items(),key=lambda row:'ABCDEFGHIJK'.index(row[0])):
             audit={}
             full,plan,folds,text,owner,depth=render_track(units,end,loop_start,clock,loops=loops,
                 seam=next((s for s in seams+ssg_seams if s["part"]==part),None),audit=audit,
-                normalize_lengths=report['normalization']['applied'])
+                normalize_lengths=report['normalization']['applied'],legacy_loops=legacy_loops,
+                score_guided_loops=score_guided_loops,source_clock_hz=source_clock)
             plan.dump(passes/(stem+f'.mucom.{part}.loops.csv'),[u.source_segment_ids for u in full],
                       audit['outer_projections']['native'])
             audit['feasible_outer'].dump(passes/(stem+f'.mucom.{part}.timing_loops.csv'),
@@ -920,6 +927,7 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             header=f'C128 t{timing["timer_b"]} q0 '
             lines.append(f'; Part {part}: musical units and finite phrase structure')
             lines.extend(wrap_track(part,header+text))
+            macro_tracks[part]=[text]
             plain_lines.extend(wrap_track(part,header+audit['plain']))
             uncompacted_lines.extend(wrap_track(part,header+audit['uncompacted']))
             before_limit_lines.extend(wrap_track(part,header+audit['selected_before_depth_limit']))
@@ -956,6 +964,15 @@ def convert_vgm(input_path,outdir,*,dump_passes=True,diagnostics_outdir=None,
             plain_muc_chars=sum(track['plain_muc_chars'] for track in report['tracks'].values()),
             structured_muc_chars=sum(track['structured_muc_chars'] for track in report['tracks'].values()),
             maximum_repeat_depth=max((track['target_repeat_depth'] for track in report['tracks'].values()),default=0))
+        from mucomsx_macros import compact_tracks
+        definitions,macro_tracks,macro_report=compact_tracks(macro_tracks,enhance_macros=enhance_macros)
+        report['macros']=macro_report
+        (passes/(stem+'.mucom.macros.json')).write_text(json.dumps(macro_report,indent=2)+'\n',encoding='utf-8')
+        if definitions:
+            (passes/(stem+'.mucom.before_macros.muc')).write_bytes(('\r\n'.join(lines)+'\r\n').encode('cp932'))
+            lines=macro_header+definitions
+            for part,chunks in macro_tracks.items():
+                lines.extend(wrap_track(part,f'C128 t{timing["timer_b"]} q0 '+' '.join(chunks)))
         muc_path=output/(stem+'.muc')
         muc_path.write_bytes(('\r\n'.join(lines)+'\r\n').encode('cp932',errors='strict'))
         if voice_path:voice_path.write_bytes(bytes(32)+b''.join(voices))

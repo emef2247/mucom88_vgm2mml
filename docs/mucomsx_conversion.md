@@ -17,7 +17,8 @@ not imported into the new target.
 Raw commands, source boundaries, native Segments, interpreted notes, envelope
 candidates, source trees, target units, pitch, assessments and macro decisions
 remain inspectable. Oversized target candidates are retained as diagnostic
-text instead of being published as a successful MUC.
+text instead of being published as a successful MUC in the pinned DOS profile;
+the separate native SCC5 profile records its own capacity warnings below.
 
 ## PSG state spelling and macro selection
 
@@ -84,15 +85,66 @@ initialization evidence remain available. An undeclared SCC reset with no
 nonzero volume is not treated as a sounding SCC part. This does not permit
 silently dropping an active unknown engine or malformed input.
 
+## Native SCC5 profile (2026-10-29)
+
+The default SCC route of `--target mucomsx` now emits the native chip-extension
+MUC understood by MUCPlayground/MDPlayer4Mac. The author confirmed that the real
+MSX version is still in preparation. The pinned local MSX-DOS compiler is not
+claimed to support these commands or containers. Generate MUC for regression:
+
+```sh
+python scripts/export_mucom.py INPUT --outdir OUTPUT --target mucomsx --muc-only
+```
+
+No `--scc-output` argument is needed for native SCC. The global default target
+remains `mucom` for existing OPNA conversion. Native SCC input does not silently
+change that target. Blueprint stays plain MUCOM88 MUC with fixed audition voices;
+reference VGM retains source chips and is not proof of this MUC's playback.
+
+Ordinary native rows use the existing C128/Timer-B allocation and explicit clock
+lengths. The `?XU` compact-stream format is not used because its C192, octave and
+length constraints differ. Native-part finite repeats are limited to two nested
+levels, expanding deeper target repeats with exact command-equivalence checks.
+The macro lexer recognizes emitted `?DB` operands atomically. Existing source
+phrase/volume interpretation is reused, without importing MGSDRV `@e` syntax or
+60 Hz envelope tables. `--fm-state-ms` does not filter the native SCC trajectory;
+it still applies to the explicit OPNA-FM compatibility route.
+
+The legacy 65,536-byte DOS input ceiling is a warning for this new native profile,
+not a reason to discard the generated MUC. New runtime limits remain unverified;
+MUC generation is not a guarantee of compilation. Physical line and wave-pool
+limits remain enforced. The mixed native SCC profile preserves interpreted PSG/SCC partitions, including
+short internal register-transition slices. Target timing must represent their
+positive intervals; the generic legacy short-partition deletion is not applied.
+This does not join or tie independently interpreted attacks. Other profiles keep
+their existing normalization policy.
+
+`*.mucomsx.scc_waves.csv` preserves wave IDs, source bytes and signed values.
+`*.mucomsx.units.csv` records source lineage, volume runs and emitted commands;
+pitch CSV adds native `target_chip`, `target_period`, frequencies and clamp
+status. The inherited `projected_opna_period` column remains for compatibility
+but holds the SCC period on native SCC rows. `native_scc` and routing reports
+identify the native profile and its pending MSX runtime validation.
+
+The fixed pitch-table values and direct-period semantics were checked against
+[NativeNotePeriods.cs](https://github.com/ToughkidDev/MDPlayer4Mac/blob/MDPlayer4Mac/macos/MucoNative/NativeNotePeriods.cs)
+and the upstream packed standard-player/compiler implementation. See the
+[official extension manual](https://github.com/ToughkidDev/MUCOMSX/blob/main/MUCPlayground/manual-data.js)
+for `SCCA`–`SCCE`, `?WD`, `?DB` and ordinary-row syntax.
+
 ## Native routing
 
 - PSG: internal PSG parts MSXD/E/F by default.
-- SCC: all five source parts use one four-carrier OPNA additive FM channel
-  each, allocated in A/B/C/H/I/J order. SSGExtend and native SCC waveform
-  commands are not emitted. The four-harmonic fit retains source-derived
-  software-volume trajectories through carrier TL controls; harmonic, phase,
-  DC, envelope and gain losses are explicit. All five original source parts
-  and their waveform evidence remain in the IR. The PSG route is unchanged.
+- SCC: native `SCCA` through `SCCE` by default. Content-deduplicated signed
+  32-byte waves are emitted as `?WD` definitions (at most64). Original linear
+  volume runs become held `v` controls with a flat native envelope; arbitrary
+  curves are not replaced with a guessed `?EP` profile. Native SCC period-table
+  notes plus a direct `?DB` offset preserve the projected physical period.
+  No OPNA FM channels or FM voice DAT are required for this route.
+- `--scc-output opna-fm`: explicit compatibility route using one four-carrier
+  OPNA additive FM channel per SCC part, allocated in A/B/C/H/I/J order. Harmonic,
+  phase, DC, envelope and gain losses remain reported. Native source evidence
+  and the default internal PSG route are unchanged.
 - OPLL: native MSXA/B/C/H/I/J and MSXG percussion. The pinned MUCOMSX native
   MUC interface exposes six melody parts plus rhythm. The YM2413 chip itself
   is not limited to six melodies. Source channels 7–9 remain in the IR;

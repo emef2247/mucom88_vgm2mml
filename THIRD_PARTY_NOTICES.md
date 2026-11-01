@@ -1,10 +1,9 @@
 # Third-party attribution and notices
 
-This file retains attribution inherited from x68k_vgm2mml. It covers referenced
-mapping material and external tools in the inherited code, not a claim that
-MDX/PDX tooling is part of the planned MUCOM88 production route. The project source is MIT-licensed; each third-party component keeps
-its own terms. Tool installation by `scripts/setup_tools.sh` is a local fetch
-and build, not a redistribution of tool executables in this repository.
+This file covers referenced mapping material and optional external tools for
+MUCOM88/MUCOMSX conversion and validation. The project source is MIT-licensed;
+each third-party component keeps its own terms. Local tool setup does not
+redistribute tool executables with this repository.
 
 ## vgm-conv
 
@@ -28,7 +27,7 @@ at the same revision for operator-bank addresses, channels0..2/4..6, key masks,
 RL swapping, FB/algorithm, PMS/AMS and approximate LFO frequency mapping.
 This project consumes native committed11-bit FNUM/BLOCK and uses its existing
 4MHz OPM pitch helper, rather than the upstream raw-register9-bit cache path.
-Source parsing, exact-sample serialization and MDX generation use this project's
+Source parsing, exact-sample serialization and target projection use this project's
 separate stages; vgm-conv is not a runtime dependency. The ISC notice below
 also applies to the referenced OPN mapping materials.
 
@@ -44,158 +43,12 @@ Permission to use, copy, modify, and/or distribute this software for any purpose
 THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-## mmlx 0.2.0
-
-Project: [h1romas4/chipstream](https://github.com/h1romas4/chipstream)
-
-Use: MML-to-MDX compilation and the FM part of the typed PCM backend. This crate is linked into the Rust
-`mdx-fixture-generator` helper; it is not a separate command-line subprocess.
-The exact Cargo version is pinned in `scripts/mdx_fixture_generator/Cargo.toml`.
-The published package's `.cargo_vcs_info.json` records revision `7e0c97733d3636e40ee23233c898e74691d48417`.
-
-License: MIT. The following text is copied from the installed published crate's
-[LICENSE](https://github.com/h1romas4/chipstream/blob/7e0c97733d3636e40ee23233c898e74691d48417/crates/mmlx/LICENSE).
-Retain it when redistributing the crate or a helper binary containing it.
-
-```text
-MIT License
-
-Copyright (c) 2026 h1romas4
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## soundlog 0.15.0
-
-Project: [h1romas4/chipstream](https://github.com/h1romas4/chipstream)
-
-Use: MDX-to-VGM replay, PDX construction and PCM reference checks. This crate is linked into the Rust
-`mdx-fixture-generator` helper; it is not a separate command-line subprocess.
-The exact Cargo version is pinned in `scripts/mdx_fixture_generator/Cargo.toml`.
-The published package's `.cargo_vcs_info.json` records revision `7e0c97733d3636e40ee23233c898e74691d48417`.
-
-License: MIT. The following text is copied from the installed published crate's
-[LICENSE](https://github.com/h1romas4/chipstream/blob/7e0c97733d3636e40ee23233c898e74691d48417/crates/soundlog/LICENSE).
-Retain it when redistributing the crate or a helper binary containing it.
-
-```text
-MIT License
-
-Copyright (c) 2025 h1romas4
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## MXC v1.01
-
-Authors: MFS soft, milk. The compiler banner reads:
-
-```text
-MML converter for mxdrv2  version 1.01 (c)1989 MFS soft, milk.
-```
-
-Use: external Human68k MML-to-MDX compiler executed through run68x.
-The setup script extracts `mxc.x` and its accompanying `mxc.doc` from
-[MDX_TOOL.lzh](https://nfggames.com/x68000/Mirrors/x68pub/x68tools/SOUND/MXDRV/MDX_TOOL.lzh).
-The checked archive SHA-256 is
-`4d4a6f00a100c728f5f4b217998e66ca8e6fa530cdfe1a5ee7c03f70715d98c4`;
-`mxc.x` SHA-256 is
-`38def25dae39ae35a16668f086843ae9f0d00295e50fd034b7b4108f7c762086`.
-
-The original CP932 `mxc.doc` states:
-
-```text
-☆ このプログラムはフリーウェアです。配布はご自由にどうぞ。
-```
-
-This permits distribution of MXC as freeware. It is not an MIT, ISC or GPL
-license, and the checked documentation does not establish permission to modify
-MXC or access its source. Keep `mxc.doc` with the compiler if redistributing it.
-This permission concerns MXC itself: it is not a blanket license for the other
-programs bundled in the historical archive. The archive's `readme.doc` describes
-an unofficial repack; setup only extracts MXC and its document.
-
-## run68x
-
-Project: [kg68k/run68x](https://github.com/kg68k/run68x)
-
-Installed revision: `fc28826dd795b1f0a3241f0b03fe2353e12e7233`
-
-Use: a separately executed Human68k runner for MXC, locally fetched and built.
-Its code is not linked into the Python converter or the Rust helper.
-
-License: GNU GPL version 2 or later, as stated by the pinned
-[README](https://github.com/kg68k/run68x/blob/fc28826dd795b1f0a3241f0b03fe2353e12e7233/README.md)
-and source headers. Author: TcbnErik, with upstream run68 contributors.
-For example, `src/run68.c` carries `Copyright (C) 2025 TcbnErik`.
-Other files retain their respective upstream notices, including the separately
-licensed Windows console component; this example is not an exhaustive copyright list.
-
-The full license is preserved in the fetched checkout's
-[LICENCE](https://github.com/kg68k/run68x/blob/fc28826dd795b1f0a3241f0b03fe2353e12e7233/LICENCE).
-When redistributing run68x, retain its copyright/license notices and comply with
-GPL source-distribution requirements (in particular section 3 for binaries).
-A README credit alone does not replace those requirements.
-
-## Optional mdxtools inspectors
-
-Project: [vampirefrog/mdxtools](https://github.com/vampirefrog/mdxtools)
-
-Installed revision: `9c8539fec2757fcf7c85d1986171b50ebe2ef1e5`
-
-Use: independent `mdxinfo`, `pdxinfo`, `mdxdump` and `mdx2mml` commands installed
-only by `scripts/setup_tools.sh --with-mdxtools`.
-The upstream README refers to its
-[LICENSE](https://github.com/vampirefrog/mdxtools/blob/9c8539fec2757fcf7c85d1986171b50ebe2ef1e5/LICENSE),
-which contains GNU GPL version 3. Preserve the upstream checkout, component
-notices and corresponding source if redistributing these tools; this entry is
-not a full audit of mdxtools' bundled sources and submodules.
-
 ## Distribution scope
 
-The repository and listening exports do not bundle the above external compiler,
-runner or inspector executables. The setup script retains MXC's document and
-full Git checkouts for run68x/mdxtools. Cargo fetches the published Rust crates,
-whose license files were checked for the notices above.
-
-A distribution of the Rust helper binary must also cover its transitive
-Rust dependencies from `Cargo.lock`; the two direct MIT notices above are not
-an exhaustive binary-distribution license bundle. The inspected lockfile
-contains permissive MIT/Apache-2.0 alternatives and, for `unicode-ident`, an
-additional Unicode-3.0 requirement. Preserve applicable upstream license and
-copyright texts before distributing such a binary.
+External compiler, player and emulator executables are locally supplied tools;
+they are not bundled with the tracked converter source. Retain their upstream
+notices and terms when redistributing those tools. Referenced mapping material
+keeps the attribution above. Private fixture/music rights remain separate.
 
 ## Native MUCOM88 compiler and offline replay
 

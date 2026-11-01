@@ -112,45 +112,29 @@ def _build_merged_mml(stem: str, song_dir: str,
 
 def build_parser():
     parser = argparse.ArgumentParser(
-        description='Convert VGM to structured MDX MML; select the source route automatically')
+        description='Convert supported MSX VGM to MGSDRV compatibility MML')
     parser.add_argument('vgm', help='Input VGM file')
     parser.add_argument('--outdir', default=None, help='Output directory (default: input directory)')
-    parser.add_argument('--target', choices=['mdx', 'mgs', 'opm', 'opm-additive'], default='mdx',
-                        metavar='{mdx,mgs}', help='Output format: mdx (default) or MGSDRV compatibility mgs')
+    parser.add_argument('--target', choices=['mgs'], default='mgs',
+                        help='Output format: MGSDRV compatibility MML')
     parser.add_argument('--title', help='Override title (default: GD3 metadata, then input stem)')
     parser.add_argument('--gd3-language', choices=['ja', 'en'], default='ja',
                         help='Preferred GD3 language, with fallback (default: ja)')
-    timing = parser.add_argument_group('MDX target timing')
+    timing = parser.add_argument_group('MGSDRV timing')
     timing.add_argument('--normalize-lengths', action=argparse.BooleanOptionalAction, default=None,
-                        help='Attempt safe target-clock correction (default: ON for structured MDX; MGS opt-in)')
+                        help='Opt in to MGSDRV target-clock normalization')
     timing.add_argument('--normalization-ms', type=float, default=8,
-                        help='MDX original whole-note omission threshold and maximum boundary movement in ms (default: 8; only with normalization enabled)')
-    advanced = parser.add_argument_group('Advanced MDX notation and chip projection')
-    advanced.add_argument('--notation', choices=['structured', 'legacy', 'registers'], default='structured',
-                        help='Native MDX notation (default: structured)')
-    advanced.add_argument('--track-layout', choices=['channels', 'conductor'], default='channels',
-                        help='Native MDX tracks; conductor requires --notation registers')
-    advanced.add_argument('--no-song-loop', action='store_true', help='Export one finite VGM pass instead of its declared song loop')
-    advanced.add_argument('--no-loops', action='store_true', help='Disable MDX finite-repeat compression')
-    advanced.add_argument('--psg-gain', type=float, default=None, help='PSG projection gain: fm=1, additive=0.125')
-    advanced.add_argument('--psg-model', choices=['fm', 'additive'], default=None,
-                         help='PSG-to-OPM tone model (default: fm); SCC uses additive')
-    advanced.add_argument('--scc-gain', type=float, default=None, help='SCC-to-OPM gain (default: 0.125)')
-    fidelity = parser.add_argument_group('Target fidelity policies')
-    fidelity.add_argument('--opm-pitch-policy', choices=['clamp', 'error'], default=None,
-                        help='OPM pitch range policy: default native/FM=clamp, additive=error')
-    fidelity.add_argument('--pcm-policy', choices=['strict', 'best-effort'],
-                        help='Native PCM target policy: strict (default) blocks known loss; best-effort reports defined loss')
+                        help='Maximum timing correction in ms (default: 8; with normalization)')
     diagnostic = parser.add_argument_group('Diagnostic and development options')
-    diagnostic.add_argument('--force', action='store_true',
-                            help='Partial MDX output: omit unsupported OPNA HW effects and excess PCM samples; list all losses')
-    diagnostic.add_argument('--fm-only', action='store_true',
-                            help='OPM + SegaPCM diagnostic export: retain native SegaPCM evidence, omit it from MDX MML')
     diagnostic.add_argument('--dump-passes', action='store_true',
                             help='Keep source/state/Segment CSVs and target analysis passes')
     diagnostic.add_argument('--debug', action='store_true',
-                            help='Keep diagnostics (MGSDRV also keeps all chip MML variants)')
-    diagnostic.add_argument('--pcm-generator', help='External typed PCM MDX/PDX helper path')
+                            help='Keep diagnostics and all chip MML variants')
+    # The retained shared frontend reads these fields, but cannot select MDX output.
+    parser.set_defaults(notation='structured', track_layout='channels',
+                        no_song_loop=False, no_loops=False, psg_gain=None,
+                        psg_model=None, scc_gain=None, opm_pitch_policy=None,
+                        pcm_policy=None, force=False, fm_only=False, pcm_generator=None)
     compatibility = parser.add_argument_group('MGSDRV compatibility options')
     compatibility.add_argument('--name', help='MGSDRV player metadata name (default: input stem)')
     compatibility.add_argument('--enhance-macros', action='store_true', default=None, help=argparse.SUPPRESS)
@@ -599,7 +583,7 @@ def main(argv=None):
     for index,argument in enumerate(arguments):
         if argument=='--target' and index+1<len(arguments):selected=arguments[index+1]
         elif argument.startswith('--target='):selected=argument.split('=',1)[1]
-    if selected in ('mdx','mgs','opm','opm-additive'):
+    if selected == 'mgs':
         previous=sys.argv
         try:
             sys.argv=[previous[0],*arguments]
@@ -608,7 +592,7 @@ def main(argv=None):
             sys.argv=previous
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('vgm',help='Input supported VGM/VGZ')
-    parser.add_argument('--target',choices=('mucom','mucomsx','mdx','mgs'),default='mucom',
+    parser.add_argument('--target',choices=('mucom','mucomsx','mgs'),default='mucom',
                         help='mucom (default), mucomsx MSX musical MUC, or explicit inherited compatibility target')
     parser.add_argument('--outdir',default='outputs')
     parser.add_argument('--dump-passes',action='store_true',help='source/music/structure dumps are always retained')
@@ -637,12 +621,19 @@ def main(argv=None):
     parser.add_argument('--no-song-loop',action='store_true',help='emit the first source traversal without a song loop')
     parser.add_argument('--opll-rhythm',choices=('native','layered'),default='native',
                         help='MUCOMSX: native OPLL percussion, optionally also layer OPNA rhythm')
+    parser.add_argument('--scc-output',choices=('native','opna-fm'),default='native',
+                        help='MUCOMSX SCC routing: native five-channel extension (default) or legacy OPNA FM')
     parser.add_argument('--psg-enhance-cents',type=float,
                         help='MUCOMSX: add an OPNA SSG copy of native PSG at the specified detune (e.g. -11)')
+    from musical_hal.score_normalization import add_arguments
+    add_arguments(parser,include_blueprint=False)
+    parser.add_argument('--score-guided-loops',action='store_true')
+    parser.add_argument('--legacy-loops',action='store_true')
+    parser.add_argument('--legacy-macros',action='store_true')
+    parser.add_argument('--no-software-volume-curves',dest='software_volume_curves',action='store_false',default=True)
     args=parser.parse_args(arguments)
+    if args.legacy_loops:args.score_guided_loops=False
     if args.target=='mucomsx':
-        if args.fm_state_ms!=1.0:
-            parser.error('--fm-state-ms currently applies to native MUCOM FM projection, not the separate MUCOMSX MSX-source path')
         unsupported={'--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
         requested=sorted({flag for option in arguments for flag in unsupported
                           if flag.startswith(option.split('=',1)[0])})
@@ -650,20 +641,38 @@ def main(argv=None):
             parser.error('--target mucomsx does not support '+', '.join(requested))
         from mucomsx_conversion import ConversionError,convert_vgm
     else:
-        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None:
+        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')
         from opna_muc import ConversionError,convert_vgm
     options=dict(dump_passes=args.dump_passes,diagnostics_outdir=args.diagnostics_outdir,
                  timing_bound_ms=args.timing_bound_ms,loops=not args.no_loops,
                  song_loop=not args.no_song_loop,normalize_lengths=args.normalize_lengths,
-                 normalization_ms=args.normalization_ms,force=args.force)
+                 normalization_ms=args.normalization_ms,force=args.force,
+                 fm_state_ms=args.fm_state_ms,software_volume_curves=args.software_volume_curves,
+                 legacy_loops=args.legacy_loops,score_guided_loops=args.score_guided_loops,
+                 enhance_macros=not args.legacy_macros)
     if args.target=='mucomsx':
-        options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents)
+        options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,scc_output=args.scc_output)
     if args.target=='mucom':
-        options.update(fm_state_ms=args.fm_state_ms,pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
+        options.update(pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
                        pcm_profile=args.pcm_profile,opm_channel_policy=args.opm_channel_policy)
+    from mucom_musical_products import prepare as prepare_musical_products
     try:
-        result=convert_vgm(args.vgm,args.outdir,**options)
+        musical_products=prepare_musical_products(args.vgm,args.outdir,Path(args.vgm).stem,
+            score_normalize=args.score_normalize,score_tempo=args.score_tempo,
+            score_guided_loops=args.score_guided_loops,legacy_loops=args.legacy_loops,
+            enhance_macros=not args.legacy_macros,force=args.force,dump_passes=args.dump_passes,
+            song_loop=not args.no_song_loop)
+    except (OSError,ValueError) as error:
+        # Optional source-product/report publication must not block an existing
+        # target route; requested retiming still requires its prepared input.
+        musical_products=dict(status='failed',conversion_input=args.vgm)
+        print('Musical source products unavailable: '+str(error),file=sys.stderr)
+    conversion_input=musical_products.get('conversion_input',args.vgm)
+    try:
+        if args.score_normalize and musical_products.get('native_reference',{}).get('status')!='passed':
+            raise ConversionError('Requested score normalization is unavailable; inspect musical_layer.json')
+        result=convert_vgm(conversion_input,args.outdir,**options)
     except (ConversionError,OSError) as error:
         if args.target=='mucom' and (args.force or args.opm_channel_policy=='omit'):
             from mucom_force import console_lines

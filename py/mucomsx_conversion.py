@@ -23,7 +23,7 @@ from mml_format import wrap_track
 CLOCK = 8_000_000
 SSG_CLOCK = CLOCK // 4
 PARTS = {'psg': ('MSXD', 'MSXE', 'MSXF'),
-         'scc': (), 'opll': ('MSXA', 'MSXB', 'MSXC', 'MSXH', 'MSXI', 'MSXJ')}
+         'scc': ('SCCA','SCCB','SCCC','SCCD','SCCE'), 'opll': ('MSXA', 'MSXB', 'MSXC', 'MSXH', 'MSXI', 'MSXJ')}
 NOTES = ('c','c+','d','d+','e','f','f+','g','g+','a','a+','b')
 FLAT_ENVELOPE = 'E255,0,0,0,0,255'
 
@@ -34,7 +34,7 @@ class ConversionError(ValueError):
 
 
 def dump_rows(path, rows, fields=()):
-    fields = tuple(fields or (rows[0] if rows else ('status',)))
+    fields = tuple(fields or dict.fromkeys(key for row in rows for key in row) or ('status',))
     with Path(path).open('w', encoding='utf-8', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fields, lineterminator='\n')
         writer.writeheader(); writer.writerows(rows)
@@ -141,13 +141,22 @@ def note_state(chip,note,at_end=False):
 
 def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops=True,
                 macros=True,force=False,normalization_ms=8.0,normalize_lengths=True,
-                timing_bound_ms=8.0,dump_passes=True,opll_rhythm='native',psg_enhance_cents=None):
+                timing_bound_ms=8.0,fm_state_ms=1.0,dump_passes=True,opll_rhythm='native',psg_enhance_cents=None,software_volume_curves=True,
+                legacy_loops=False,score_guided_loops=False,enhance_macros=True,scc_output='native'):
+    from fm_state_runs import fm_short_state_samples
+    state_bound=fm_short_state_samples(fm_state_ms)
     out=Path(outdir);out.mkdir(parents=True,exist_ok=True)
     passes=Path(diagnostics_outdir or out);passes.mkdir(parents=True,exist_ok=True)
     stem=Path(input_path).stem;report_path=passes/(stem+'.mucomsx.json')
     report=dict(status='analyzing',target='MUCOMSX v1.0-stable',source=str(input_path),
+        options=dict(software_volume_curves=bool(software_volume_curves),legacy_loops=bool(legacy_loops),
+            score_guided_loops=bool(score_guided_loops and not legacy_loops),enhance_macros=bool(enhance_macros)),
         tracks={},assessments=[],omissions=[],source_evidence_unchanged=True)
     if opll_rhythm not in ('native','layered'):raise ConversionError('Unknown OPLL rhythm routing')
+    if scc_output not in ('native','opna-fm'):raise ConversionError('SCC output must be native or opna-fm')
+    report['options']['scc_output']=scc_output
+    score_guided_loops=score_guided_loops and not legacy_loops
+    loop_strategy='retained' if legacy_loops else 'structural'
     stage='source_analysis'
     def assessment(chip,ch,note,action,reason):
         row=dict(chip=chip,channel=ch,source_start=note.start,
@@ -163,7 +172,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         if is_dcsg:
             from dcsg_music import load_dcsg_bundle
             bundle=load_dcsg_bundle(input_path,passes,stem,song_loop=song_loop)
-        else:bundle=load_source(input_path,passes,stem,song_loop=song_loop)
+        else:bundle=load_source(input_path,passes,stem,song_loop=song_loop,software_volume_curves=software_volume_curves)
         report['source']=dict(paths=bundle.paths,loop=bundle.metadata,
             first_end_sample=bundle.first_end_sample,end_sample=bundle.end_sample)
         # Source analysis and envelope candidates precede every target limit.
@@ -184,12 +193,12 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         tracks={};origins={};end=bundle.end_sample;loop=bundle.loop_sample
         enhance_requested=psg_enhance_cents is not None and bool(bundle.notes.get('psg'))
         fm_parts=set();fm_available=iter(('A','B','C','H','I','J'));routing=[]
-        report['scc_projection_policy']='all_opna_fm_additive4'
+        report['scc_projection_policy']='native_scc5' if scc_output=='native' else 'all_opna_fm_additive4'
         for chip,channels in bundle.notes.items():
             for ch,rows in sorted(channels.items()):
                 if chip=='opll' and ch>=9:continue
                 if not any(not n.rest for n in rows):continue
-                if chip=='scc' or ch>=len(PARTS[chip]):
+                if (chip=='scc' and scc_output=='opna-fm') or ch>=len(PARTS[chip]):
                     if chip=='opll':
                         for note in rows:
                             if not note.rest:assessment(chip,ch,note,'omit_part','MUCOMSX native OPLL six-melody interface; OPNA substitution disabled')
@@ -230,6 +239,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     target_chip='opna_ssg',enhancement_cents=psg_enhance_cents))
             report['psg_enhancement']=dict(cents=psg_enhance_cents,policy='explicit detuned SSG layer; quantized periods; shared-noise limitations retained')
         report['routing']=routing
+        native_scc_parts={part for part,(chip,_) in origins.items() if chip=='scc' and part not in fm_parts}
         if is_dcsg:report['dcsg_projection']=bundle.metadata['dcsg_projection_assessments']
         rhythm_segments={ch:rows for ch,rows in bundle.segments.get('opll',{}).items() if ch>=9}
         rhythm_attacks=sorted({r.vgmticks for rows in rhythm_segments.values() for r in rows
@@ -259,6 +269,35 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                 report['omissions'].append(dict(chip='song',channel='',source_start=loop,source_end=end,
                     segment_indices='[]',action='omit_song_loop',reason='incompatible carried target state: '+','.join(incompatible)))
                 end=bundle.first_end_sample;loop=None
+        stage='fm_state_projection'
+        from mucom_fm_state_normalization import filter_msx_fm_note, msx_fm_runs, dump_decisions
+        decisions=[];state_input=[];state_output=[]
+        fields=('part','gate_start','gate_end','control_index','start','end','state','source_segment_ids')
+        def state_rows(part,note,chip):
+            return [dict(part=part,gate_start=note.start,gate_end=note.start+note.length,
+                control_index=i,start=a,end=b,state=json.dumps(state),
+                source_segment_ids=json.dumps(note.segment_indices))
+                for i,(a,b,state) in enumerate(msx_fm_runs(note,chip))]
+        for part,rows in list(tracks.items()):
+            chip,ch=origins[part]
+            if chip!='opll' and part not in fm_parts:continue
+            selected=[]
+            for note in rows:
+                state_input.extend(state_rows(part,note,chip))
+                if normalize_lengths:
+                    view,detail=filter_msx_fm_note(note,chip,part=part,max_samples=state_bound,seams=(() if loop is None else (loop,)))
+                    decisions.extend(detail)
+                else:view=note
+                state_output.extend(state_rows(part,view,chip))
+                selected.append(view)
+            tracks[part]=selected
+        dump_rows(passes/(stem+'.mucomsx.fm_states.input.csv'),state_input,fields)
+        dump_rows(passes/(stem+'.mucomsx.fm_states.output.csv'),state_output,fields)
+        dump_decisions(decisions,passes/(stem+'.mucomsx.fm_states.decisions.csv'))
+        report['fm_short_states']=dict(enabled=bool(normalize_lengths),threshold_ms=float(fm_state_ms),
+            threshold_samples=state_bound,source_evidence_unchanged=True,
+            omitted=sum(row['action']=='omit_short_state' for row in decisions),
+            decision_csv=str(passes/(stem+'.mucomsx.fm_states.decisions.csv')))
         stage='musical_projection'
         # A new target view clips/splits units; native Segments and interpreted
         # source notes remain unchanged in their dedicated dumps.
@@ -275,11 +314,12 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     pieces.extend(clipped(rest,x,y) for x,y in zip(cuts,cuts[1:]))
                 view=note
                 if (normalize_lengths and origins[part][0]!='rhythm' and not note.rest
+                        and not (native_scc_parts and origins[part][0] in ('psg','scc'))
                         and note.start+note.length<bundle.end_sample
                         and note.length <= math.floor(normalization_ms*44.1)):
                     view=SimpleNamespace(**vars(note));view.rest=True;view.runs=[]
                     assessment(origins[part][0],origins[part][1],note,'omit_short_gate',
-                        'whole original-time sounding gate within normalization threshold')
+                        'legacy short interpreted-partition normalization threshold')
                 cuts=[a]+([loop] if loop is not None and a<loop<b else [])+[b]
                 pieces.extend(clipped(view,x,y) for x,y in zip(cuts,cuts[1:]))
                 cursor=b
@@ -298,7 +338,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             rhythm_by_tick={u.start:u for u in rhythm_units}
             report['rhythm_projection']=rhythm_report
             (passes/(stem+'.mucomsx.rhythm.json')).write_text(json.dumps(rhythm_report,indent=2)+'\n',encoding='utf-8')
-        voice_ids={};voices={};scc_fm_voices={};pitch_rows=[];units_rows=[];structure_reports={};rendered={};plain={};state_reports={}
+        voice_ids={};voices={};scc_fm_voices={};scc_waves={};pitch_rows=[];units_rows=[];structure_reports={};rendered={};plain={};state_reports={}
         def voice_id(record):
             if record not in voice_ids:
                 if len(voice_ids)>=32:raise ConversionError('MUCOMSX used-FM-voice capacity 32 exceeded')
@@ -343,6 +383,24 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     pitch_rows.append(dict(part=part,source_start=note.start,source_period=state.tone_period,
                         source_clock_hz=bundle.header['scc_clock_raw']&0x3fffffff,
                         projected_opna_period=p.target_fnum,detune=p.detune,octave=p.target_block))
+                elif chip=='scc':
+                    from mucomsx_scc_native import render_note,project_pitch
+                    wave=note.segment.waveform_hex.lower()
+                    if wave not in scc_waves:
+                        if len(scc_waves)>=64:
+                            raise ConversionError('Native SCC waveform capacity exceeded: 64 distinct waves')
+                        scc_waves[wave]=len(scc_waves)
+                    command,key,pinfo=render_note(note,ticks,scc_waves[wave],
+                        bundle.header['scc_clock_raw']&0x3fffffff)
+                    native_pitch=project_pitch(note.segment.tone_period,bundle.header['scc_clock_raw']&0x3fffffff)
+                    pinfo.update(target_chip='scc',target_period=native_pitch.target_period,
+                        source_frequency_hz=native_pitch.source_frequency_hz,
+                        target_frequency_hz=native_pitch.target_frequency_hz,clamped=native_pitch.clamped)
+                    if native_pitch.clamped:
+                        assessment(chip,ch,note,'approximate_pitch_clamp','Source clock projection exceeds native SCC period range; nearest boundary period used')
+                    pitch_rows.append(dict(part=part,source_start=note.start,
+                        source_period=note.segment.tone_period,
+                        source_clock_hz=bundle.header['scc_clock_raw']&0x3fffffff,**pinfo))
                 elif chip=='psg':
                     s=note.segment
                     source_clock=(bundle.metadata['dcsg_source_config']['clock_hz'] if is_dcsg else
@@ -425,7 +483,12 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             for label,a,b in [('intro',0,split),('loop',split,len(rows))]:
                 if a==b:continue
                 if chip in ('psg','scc'):
-                    plan=prepare({0:rows[a:b]},chip,strategy='structural')[0][0]
+                    plan=prepare({0:rows[a:b]},chip,strategy=loop_strategy)[0][0]
+                    if score_guided_loops:
+                        from mucom_structure import planning_plan
+                        from musical_hal.score_structure import partition_key
+                        score_keys=[partition_key(n,rows[i-1] if i>a else None) for i,n in enumerate(rows[a:b],a)]
+                        plan=planning_plan(plan.keys,score_keys=score_keys)
                     text,folds=plan.render(commands[a:b]) if loops else (' '.join(commands[a:b]),[])
                 elif chip=='opll':
                     members=[];items=[];body=[];units=[]
@@ -437,12 +500,30 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                         body.extend(child_commands)
                         units.append(NoteUnit(local_index,local_index+1,
                             'rest' if rows[source_index].rest else 'note',keys[source_index],rows[source_index].length))
-                    plan=OpllLoopPlan.build(members,units,items,strategy='structural')
+                    plan=OpllLoopPlan.build(members,units,items,strategy=loop_strategy)
+                    if score_guided_loops:
+                        from mucom_structure import planning_plan
+                        from musical_hal.score_structure import midi_pitch
+                        source_clock=bundle.header['opll_clock_raw']&0x3fffffff
+                        def pitch_key(note):
+                            if note.rest:return ('rest',note.length)
+                            return ('opll',note.length,tuple((r.tick_end-r.tick_start,
+                                midi_pitch(source_clock/72*r.fnum*2**r.block/2**19)) for r in note.sample_slices))
+                        plan.outer=planning_plan(plan.outer.keys,score_keys=[pitch_key(n) for n in rows[a:b]])
+                        guided_children=[]
+                        for note,child in zip(rows[a:b],plan.inner):
+                            score=(child.keys if note.rest else tuple((stop-start,
+                                midi_pitch(source_clock/72*r.fnum*2**r.block/2**19),bool(r.keyon))
+                                for r in note.sample_slices
+                                for start,stop in [(max(note.start,r.tick_start),min(note.start+note.length,r.tick_end))]
+                                if stop>start))
+                            guided_children.append(planning_plan(child.keys,score_keys=score))
+                        plan.inner=tuple(guided_children)
                     text,folds=plan.render(body,list(range(len(body)+1))) if loops else (' '.join(commands[a:b]),[])
                 else:
-                    plan=SourceLoopPlan.build(keys[a:b],strategy='structural')
+                    plan=SourceLoopPlan.build(keys[a:b],strategy=loop_strategy)
                     text,folds=plan.render(commands[a:b]) if loops else (' '.join(commands[a:b]),[])
-                text,depths=limit_repeat_depth(text)
+                text,depths=limit_repeat_depth(text,maximum=2 if native_scc_parts else 16)
                 if expanded_tokens(text)!=expanded_tokens(' '.join(commands[a:b])):raise AssertionError('MSX structural projection changed commands')
                 plan.dump(passes/f'{stem}.{part}.{label}.structure.csv',[n.segment_indices for n in rows[a:b]],folds)
                 if label=='loop':chunks.append('L');plain_chunks.append('L')
@@ -458,8 +539,17 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         report['psg_state_spelling']={part:{key:value for key,value in detail.items() if key!='units'}
             for part,detail in state_reports.items()}
         report['scc_opna_voices']=[voice.report for voice in scc_fm_voices.values()]
+        wave_rows=[dict(wave_id=ident,source_waveform_hex=wave,signed_samples=json.dumps(
+            [b if b<128 else b-256 for b in bytes.fromhex(wave)])) for wave,ident in scc_waves.items()]
+        dump_rows(passes/(stem+'.mucomsx.scc_waves.csv'),wave_rows,('wave_id','source_waveform_hex','signed_samples'))
+        report['native_scc']=dict(parts=sorted(native_scc_parts),waveform_count=len(scc_waves),
+            short_partition_policy='Preserve interpreted PSG/SCC partitions; target timing must represent positive intervals',
+            waveform_capacity=64,waveform_csv=str(passes/(stem+'.mucomsx.scc_waves.csv')),
+            software_envelope='Original interpreted linear volume runs; flat E and tied v updates',
+            pitch='Native SCC table plus direct signed period offset; target clock 1789773 Hz',
+            compiler_compatibility='Playground/MDPlayer4Mac native chip extension; MSX release pending')
         stage='macro_projection'
-        definitions,compacted,macro_report=compact_tracks(rendered,limit=32 if macros else 0)
+        definitions,compacted,macro_report=compact_tracks(rendered,limit=32 if macros else 0,enhance_macros=enhance_macros)
         report['macros']=macro_report
         header=[f'#title {stem}','#driver mucomDotNET']
         if voices:
@@ -468,6 +558,12 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             bank_path=out/(stem+'.dat');header.append('#voice '+bank_path.name)
             report['voice_bank']=str(bank_path)
         prefix='C128 t'+str(timing['timer_b'])+' q0 '
+        if scc_waves:
+            from mucomsx_scc_native import wave_definition
+            header.extend(wave_definition(ident,wave) for wave,ident in scc_waves.items())
+            header.append('; Native SCC5: Playground/MDPlayer4Mac; real MSX compiler support is pending.')
+            report['target']='MUCOMSX native SCC5 extension'
+            report['runtime_compatibility']='Playground/MDPlayer4Mac syntax; installed MSX-DOS compiler unverified'
         lines=header+definitions
         for part,chunks in compacted.items():lines.extend(wrap_track(part,prefix+' '.join(chunks)))
         text='\r\n'.join(lines)+'\r\n';encoded=text.encode('cp932')
@@ -477,10 +573,13 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         dump_rows(passes/(stem+'.mucomsx.pitch.csv'),pitch_rows)
         (passes/(stem+'.mucomsx.structure.json')).write_text(json.dumps(structure_reports,indent=2)+'\n',encoding='utf-8')
         (passes/(stem+'.mucomsx.macros.json')).write_text(json.dumps(macro_report,indent=2)+'\n',encoding='utf-8')
-        if len(encoded)>65536:
+        if len(encoded)>65536 and not scc_waves:
             candidate=passes/(stem+'.mucomsx.rejected_muc.txt');candidate.write_bytes(encoded)
             report['rejected_candidate']=str(candidate)
             raise ConversionError(f'MUCOMSX MUC input capacity exceeded: {len(encoded)}/65536 bytes')
+        if scc_waves and len(encoded)>65536:
+            report['capacity_warnings']=[dict(kind='legacy_dos_muc_input',actual=len(encoded),limit=65536,
+                action='generated_native_scc_candidate',reason='Native SCC5 runtime has a separate unverified compiler profile')]
         if any(len(line.encode('cp932'))>1023 for line in lines):raise ConversionError('MUCOMSX physical line exceeds 1023 bytes')
         path=out/(stem+'.muc')
         if voices:bank_path.write_bytes(bank)
@@ -490,8 +589,8 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         dump_rows(passes/(stem+'.mucomsx.assessments.csv'),report['assessments'],('chip','channel','source_start','source_end','segment_indices','action','reason'))
         (passes/(stem+'.mucomsx.structure.json')).write_text(json.dumps(structure_reports,indent=2)+'\n',encoding='utf-8')
         (passes/(stem+'.mucomsx.macros.json')).write_text(json.dumps(macro_report,indent=2)+'\n',encoding='utf-8')
-        report.update(status='generated',muc_path=str(path),muc_bytes=len(encoded),waveform_count=0,
-            native_scc_target_channels=0,
+        report.update(status='generated',muc_path=str(path),muc_bytes=len(encoded),waveform_count=len(scc_waves),
+            native_scc_target_channels=sum(part.startswith('SCC') for part in rendered),
             musical_note_units=sum(not n.rest for rows in projected.values() for n in rows),
             source_end_sample=bundle.end_sample,target_end_source_sample=end,target_loop_source_sample=loop,
             software_envelope='MSX note volume runs lowered to tied v updates; no arbitrary MGSDRV @e table claim',

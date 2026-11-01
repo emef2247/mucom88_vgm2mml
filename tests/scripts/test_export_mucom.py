@@ -442,3 +442,144 @@ class MucomCompilerTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SourceProductTests(unittest.TestCase):
+    prepare = ExportMucomTests.prepare
+
+    @staticmethod
+    def convert_products(command, **kwargs):
+        import json
+        result = convert(command, **kwargs)
+        folder = Path(command[command.index('--outdir') + 1])
+        stem = Path(command[2]).stem
+        products = []
+        for kind, relative in (('reference_vgm', 'tracks/' + stem + '.vgm'),
+                               ('blueprint', 'blueprint/' + stem + '.part01.muc'),
+                               ('blueprint_midi', 'blueprint/' + stem + '.part01.midi'),
+                               ('blueprint_voice', 'blueprint/' + stem + '.part01.dat')):
+            artifact = folder / relative
+            artifact.parent.mkdir(exist_ok=True)
+            artifact.write_bytes((kind + ' authored product').encode())
+            products.append(dict(kind='native_reference' if kind == 'reference_vgm' else kind,
+                                 relative=relative, path=str(artifact)))
+        (folder / (stem + '.musical_layer.json')).write_text(
+            json.dumps(dict(status='partial', products=products)))
+        return result
+
+    def test_source_products_survive_target_conversion_or_compilation_failure(self):
+        import json
+        for failure in ('conversion', 'compilation'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                source, out = self.prepare(Path(tmp))
+                def conversion(command, **kwargs):
+                    result = self.convert_products(command, **kwargs)
+                    return subprocess.CompletedProcess(command, 1, '', 'target unsupported') if failure == 'conversion' else result
+                with patch('export_mucom.subprocess.run', side_effect=conversion), \
+                        patch('export_mucom.compile_muc', side_effect=RuntimeError('compiler failed')):
+                    row = run_batch(source, out)[0]
+                self.assertEqual(row['status'], failure + '_failed')
+                self.assertEqual(row['source_products_status'], 'published')
+                self.assertEqual(row['source_status'], 'partial')
+                self.assertEqual(row['reference_vgm'], 'tracks/song.vgm')
+                self.assertEqual(row['blueprint'], 'blueprint/song.part01.muc')
+                self.assertTrue((out / row['blueprint_midi']).is_file())
+                entry = json.loads((out / 'listening_manifest.json').read_text())['entries']['song.vgm']
+                self.assertEqual(len(entry['source_products']), 4)
+                self.assertNotIn('tracks/song.vgm', entry['published'])
+
+    def test_edited_or_unowned_blueprint_is_preserved_without_blocking_muc(self):
+        for owned in (True, False):
+            with self.subTest(owned=owned), tempfile.TemporaryDirectory() as tmp:
+                source, out = self.prepare(Path(tmp))
+                if owned:
+                    with patch('export_mucom.subprocess.run', side_effect=self.convert_products):
+                        run_batch(source, out, muc_only=True)
+                blueprint = out / 'blueprint/song.part01.muc'
+                blueprint.parent.mkdir(parents=True, exist_ok=True)
+                blueprint.write_text('user edit')
+                with patch('export_mucom.subprocess.run', side_effect=self.convert_products):
+                    row = run_batch(source, out, muc_only=True, force=True)
+                self.assertEqual(row[0]['status'], 'muc_only')
+                self.assertEqual(row[0]['source_products_status'], 'publication_failed')
+                self.assertEqual(blueprint.read_text(), 'user edit')
+                self.assertTrue((out / row[0]['muc']).is_file())
+
+    def test_partial_source_success_preserves_other_publication_group(self):
+        import json
+        for keep in ('reference_vgm', 'blueprint'):
+            with self.subTest(keep=keep), tempfile.TemporaryDirectory() as tmp:
+                source, out = self.prepare(Path(tmp))
+                with patch('export_mucom.subprocess.run', side_effect=self.convert_products):
+                    run_batch(source, out, muc_only=True)
+                old = {p: p.read_bytes() for p in (out/'blueprint').iterdir()}
+                old[out/'tracks/song.vgm'] = (out/'tracks/song.vgm').read_bytes()
+                def conversion(command, **kwargs):
+                    result = self.convert_products(command, **kwargs)
+                    folder = Path(command[command.index('--outdir') + 1])
+                    report = folder/'song.musical_layer.json'
+                    data = json.loads(report.read_text())
+                    data['products'] = [p for p in data['products'] if
+                        (p['kind']=='native_reference') == (keep=='reference_vgm')]
+                    report.write_text(json.dumps(data))
+                    return result
+                with patch('export_mucom.subprocess.run', side_effect=conversion):
+                    row = run_batch(source, out, muc_only=True)[0]
+                self.assertEqual(row['source_products_status'], 'published')
+                for path, content in old.items():
+                    self.assertEqual(path.read_bytes(), content)
+                entry = json.loads((out/'listening_manifest.json').read_text())['entries']['song.vgm']
+                self.assertEqual(len(entry['source_products']), 4)
+                self.assertFalse(list(out.glob('.publication-recovery-*')))
+
+    def test_source_publication_rolls_back_when_manifest_commit_fails(self):
+        import export_mucom
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp))
+            original_save = export_mucom._atomic_json
+            failed = False
+            def save(path, data):
+                nonlocal failed
+                entry = data.get('entries', {}).get('song.vgm', {}) if isinstance(data, dict) else {}
+                if path.name == 'listening_manifest.json' and entry.get('source_products') and not failed:
+                    failed = True
+                    raise OSError('injected source manifest failure')
+                original_save(path, data)
+            with patch('export_mucom.subprocess.run', side_effect=self.convert_products), \
+                    patch('export_mucom._atomic_json', side_effect=save):
+                row = run_batch(source, out, muc_only=True)[0]
+            self.assertTrue(failed)
+            self.assertEqual(row['status'], 'publication_failed')
+            self.assertFalse((out / 'tracks/song.vgm').exists())
+            self.assertFalse((out / 'blueprint/song.part01.muc').exists())
+            self.assertFalse(row['blueprint'])
+
+    def test_failed_source_layer_does_not_block_native_target(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            source, out = self.prepare(Path(tmp))
+            def conversion(command, **kwargs):
+                result = convert(command, **kwargs)
+                folder = Path(command[command.index('--outdir') + 1])
+                (folder / 'song.musical_layer.json').write_text(json.dumps(dict(status='failed', products=[])))
+                return result
+            with patch('export_mucom.subprocess.run', side_effect=conversion):
+                row = run_batch(source, out, muc_only=True)[0]
+            self.assertEqual(row['status'], 'muc_only')
+            self.assertEqual(row['source_status'], 'failed')
+            self.assertTrue((out / row['muc']).exists())
+
+    def test_cli_forwards_common_source_options_for_both_targets(self):
+        for target in ('mucom', 'mucomsx'):
+            with self.subTest(target=target), tempfile.TemporaryDirectory() as tmp:
+                source, out = self.prepare(Path(tmp))
+                flags = ['--score-normalize', '--score-tempo', '210', '--score-guided-loops',
+                         '--legacy-loops', '--legacy-macros', '--no-software-volume-curves', '--dump-passes']
+                with patch('sys.argv', ['export_mucom.py', str(source), '--outdir', str(out),
+                                        '--muc-only', '--target', target, *flags]), \
+                        patch('export_mucom.subprocess.run', side_effect=convert) as converter:
+                    self.assertEqual(main(), 0)
+                command = converter.call_args.args[0]
+                for flag in flags:
+                    self.assertIn(flag, command)
+                self.assertEqual(command[command.index('--fm-state-ms') + 1], '24.0')

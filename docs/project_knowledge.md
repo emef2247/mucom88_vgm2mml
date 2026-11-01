@@ -679,3 +679,32 @@ Losing that traceability requires strong justification. The design question
 is what musical behavior the source supports, what changes at each stage,
 and whether the interpretation/loss is intentional. A final target file
 alone cannot answer it.
+
+## Distribution and tool scope
+
+MUCOM88/MUCOMSX are the native output targets here; explicit MGS compatibility remains. MDX export, compilation, replay and inspector tooling
+are maintained in x68k_vgm2mml. Shared analysis/structural modules and reference
+evidence may still mention MDX; their presence does not provide an MDX toolchain
+in this repository. Keep required attribution for retained referenced code.
+
+
+## Native musical-layer source products
+
+Source-native musical units and ordered controls may be rendered as a reference
+VGM independently of a production MUC projection. Source-chip preservation in
+that reference is not evidence of a completed MUC mapping. Whole sounding gates
+must be projected before their internal curves: independently rounding every
+control slice upward can invent overlapping voices. Blueprint approximation
+must leave native evidence intact and report dropped sub-grid intervals.
+
+Reference and blueprint publication are independent owned groups. A failed group
+must not remove previously published output from another group. Persist recovery
+copies before mutation and retain them when any rollback restoration fails.
+
+
+For native chip projections, interpreted score partitions are not automatically
+complete audibility gates. A very short register-transition slice must not be
+turned into a rest merely because it falls below a note-duration threshold.
+Retain the source/boundary evidence and existing interpreted attacks; require an
+explicit target timing projection or a diagnosed limitation. This principle does
+not authorize tying every adjacent slice sharing an audibility gate.

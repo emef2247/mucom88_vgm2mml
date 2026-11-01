@@ -50,6 +50,7 @@ class MucomsxBatchTests(unittest.TestCase):
             old_compiler.assert_not_called()
             for call in converter.call_args_list:
                 self.assertEqual(call.args[0][call.args[0].index('--target') + 1], 'mucomsx')
+                self.assertEqual(call.args[0][call.args[0].index('--scc-output')+1],'native')
             for call in runtime.call_args_list:
                 self.assertEqual(call.kwargs['timeout'], 42)
                 self.assertTrue(call.kwargs['compile_only'])
@@ -61,6 +62,15 @@ class MucomsxBatchTests(unittest.TestCase):
                 manifest = json.loads((output / parent / 'listening_manifest.json').read_text())
                 self.assertTrue(all(any(name.endswith('.mub') for name in item['published'])
                                     for item in manifest['entries'].values()))
+
+    def test_explicit_fm_fallback_is_forwarded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source,output,_=self.prepare(Path(tmp))
+            with patch.object(batch.subprocess,'run',side_effect=convert) as converter:
+                rows=batch.run_batch(source,output,target='mucomsx',muc_only=True,scc_output='opna-fm')
+            self.assertEqual(rows[0]['status'],'muc_only')
+            command=converter.call_args.args[0]
+            self.assertEqual(command[command.index('--scc-output')+1],'opna-fm')
 
     def test_failed_dos_job_keeps_muc_and_diagnostics_then_continues(self):
         with tempfile.TemporaryDirectory() as tmp:

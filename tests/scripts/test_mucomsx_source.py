@@ -48,6 +48,35 @@ class SourceTests(unittest.TestCase):
         self.assertTrue(Path(bundle.paths['segments']).is_file())
         self.assertTrue(bundle.analyses['psg']['source_plans'])
 
+    def test_psg_attack_curve_is_interpreted_before_structure(self):
+        commands = bytes.fromhex('a0 00 fe a0 01 00 a0 07 3e a0 08 04 61 e8 03 '
+                                 'a0 08 0f 61 e8 03 a0 08 08 61 e8 03 66')
+        bundle = self.load(vgm(commands), song_loop=False)
+        detail = bundle.analyses['psg']
+        sounding = [n for n in bundle.notes['psg'][0] if not n.rest]
+        self.assertEqual(len(sounding),1)
+        self.assertEqual(sounding[0].runs,[(4,1000),(15,1000),(8,1000)])
+        self.assertEqual(detail['continuation'].summary()['accepted_curves'],1)
+        self.assertEqual(detail['performance'].tick_clock_hz,44100)
+        detail['performance'].validate(detail['sample_rows'])
+        prefix = Path(bundle.paths['notes']).parent/'authored.psg.source'
+        self.assertTrue(Path(str(prefix)+'.performance.controls.csv').is_file())
+        self.assertTrue(Path(str(prefix)+'.continuation.notes.csv').is_file())
+        self.assertIs(sounding[0].segment,bundle.segments['psg'][0][sounding[0].segment_indices[0]])
+
+    def test_scc_attack_curve_retains_wave_and_source_membership(self):
+        commands = bytearray.fromhex('d2 01 00 fe d2 01 01 00 d2 02 00 04 d2 03 00 01 '
+                                      '61 e8 03 d2 02 00 0f 61 e8 03 d2 02 00 08 61 e8 03 66')
+        bundle = self.load(vgm(commands),song_loop=False)
+        notes = [n for n in bundle.notes['scc'][0] if not n.rest]
+        self.assertEqual(len(notes),1)
+        self.assertEqual(notes[0].runs,[(4,1000),(15,1000),(8,1000)])
+        detail = bundle.analyses['scc']
+        self.assertEqual(detail['continuation'].summary()['accepted_curves'],1)
+        self.assertTrue(detail['performance'].validate(detail['sample_rows']))
+        self.assertTrue(all(bundle.segments['scc'][0][i].waveform_hex == notes[0].segment.waveform_hex
+                            for i in notes[0].segment_indices))
+
     def test_five_scc_parts_remain_native(self):
         commands = bytearray()
         for ch in range(5):

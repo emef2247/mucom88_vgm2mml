@@ -1,3 +1,9 @@
+## Historical MDX tooling scope
+
+MDX tool commands below are retained as historical/reference context. These
+scripts and their external toolchain are no longer shipped here; use
+x68k_vgm2mml for MDX generation, compilation and inspection.
+
 # OPM / MDX baseline
 
 Normal conversion is `python vgm2mml.py input.vgm --outdir outputs/input --dump-passes`.

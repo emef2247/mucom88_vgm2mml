@@ -98,11 +98,12 @@ class _Loop:
 
 _NUM = r'[+-]?(?:\$[0-9a-fA-F]+|\d+)'
 _TOKEN = re.compile(
-    r'y(?:[A-Z]{2},' + _NUM + ',' + _NUM + '|' + _NUM + ',' + _NUM + ')'
+    r'\?DB' + _NUM + r',1'
+    r'|y(?:[A-Z]{2},' + _NUM + ',' + _NUM + '|' + _NUM + '(?:,' + _NUM + '){1,3})'
     r'|E' + _NUM + '(?:,' + _NUM + '){5}'
     r'|KD' + _NUM + '(?:,' + _NUM + '){3}'
     r'|@W\d+|@\d+'
-    r'|[PDoOvVClLqQtTmMSwp]' + _NUM + '(?:,' + _NUM + ')*'
+    r'|[HPDoOvVClLqQtTmMSwp]' + _NUM + '(?:,' + _NUM + ')*'
     r'|[a-gr](?:[+-])?(?:%\d+|\d+\.*)?'
     r'|[&L<>]')
 
@@ -309,7 +310,7 @@ def _structured(tracks, *, limit, max_width, encoding, first_rank=0):
         saving_bytes=before - after, macros=audit, expansion_proof=proof)
 
 
-def compact_tracks(tracks, *, limit=32, max_width=64, encoding='shift_jis'):
+def compact_tracks(tracks, *, limit=32, max_width=64, encoding='shift_jis', enhance_macros=True):
     """MSX allocation portfolio adapted to exact MUCOMSX command trees.
 
     The atomic baseline wins ties. Four bounded searches inspect merged tracks
@@ -323,6 +324,10 @@ def compact_tracks(tracks, *, limit=32, max_width=64, encoding='shift_jis'):
     for proof in baseline[2]['expansion_proof'].values():
         proof.update(token_identity=True, loop_tree_identity=True)
     choices = [baseline]
+    if not enhance_macros:
+        baseline[2]['structured_search_status'] = 'disabled'
+        baseline[2]['enhance_macros'] = False
+        return baseline
     try:
         for width, rank in ALLOCATION_PORTFOLIO:
             candidate = _structured(original, limit=limit,
@@ -338,4 +343,5 @@ def compact_tracks(tracks, *, limit=32, max_width=64, encoding='shift_jis'):
                                      selected_bytes=choice[2]['selected_bytes'])
                                 for choice in choices]
     chosen[2]['structured_search_status'] = 'searched'
+    chosen[2]['enhance_macros'] = True
     return chosen

@@ -4,7 +4,7 @@
 
 - Convert VGM into inspectable, source-derived musical Segments, then generate editable, structurally meaningful MUCOM88 MML.
 - Intended native route: OPNA/YM2608 VGM -> native analysis -> musical Segments -> musical interpretation / structural analysis -> MUCOM88 MML (.muc), with required PCM handling.
-- Current route (2026-10-14): default `--target mucom` generates musical MUC and native banks from YM2608; scripts/export_mucom.py compiles MUB. Explicit `--target mdx` and `--target mgs` retain inherited routes. docs/integration_baseline.json records the reset starting point, not current content identity.
+- Current route (2026-10-14): default `--target mucom` generates musical MUC and native banks from YM2608; scripts/export_mucom.py compiles MUB. Explicit `--target mgs` retains MGSDRV compatibility; MDX export/tooling belongs to x68k_vgm2mml. docs/integration_baseline.json records the reset starting point, not current content identity.
 - Preserve inherited OPM, OPLL, PSG/SSG, SCC and MSM6258 source-analysis paths. Their presence does not imply completed MUCOM88 projection.
 - Main language: Python 3.
 - Primary working environment: WSL.
@@ -17,7 +17,6 @@ Verify the current CLI in `README.md` and `python vgm2mml.py --help`. The defaul
 
 - Canonical MUC converter: `python vgm2mml.py <input.vgm> --outdir outputs/<song>`
 - MUC/MUB batch: `python scripts/export_mucom.py <vgm-or-directory> --outdir outputs/mucom88/<set>`
-- Inherited MDX route: `python vgm2mml.py <input.vgm> --target mdx`
 - MGSDRV compatibility, if retained by the current CLI: `python vgm2mml.py <input.vgm> --target mgs`
 - Automated checks: `python -m unittest discover -s tests/scripts -v`
 - For isolated conversion checks, use a separate output directory outside source fixtures (`--outdir <directory>` where supported).

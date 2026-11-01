@@ -1,3 +1,86 @@
+# Native SCC5 default for MUCOMSX (2026-10-29)
+
+User requests SCC VGM -> native SCCA..SCCE by default, preserving shared MSX
+PSG/SCC interpretation and structure. Implemented within --target mucomsx;
+global default mucom is unchanged. --scc-output opna-fm retains the prior additive
+compatibility route. PSG remains MSXD/E/F; no SSGExtend or FM voice bank for SCC.
+User supplied author's response: real MSX version is in preparation. Use
+--target mucomsx --muc-only for current Playground MUC checks; do not claim
+installed DOS compiler compatibility or update binaries/MUB validators blindly.
+
+Source wave bytes and linear volume runs retained; native wave64-ID pool,
+frozen native period table and direct signed ?DB offsets. Original-device source
+clock retained in diagnostics. Ordinary C128 rows avoid compact ?XU restrictions.
+Native mixed-profile repeats at most2levels; exact loop/macro expansion checked.
+FM-state filtering stays only on FM routes. Native MUC over64KiB is retained with
+legacy-DOS capacity warning; no compilation guarantee. README unchanged.
+
+Focused tests93passed; public psg_scc/001 and002 exported MUC-only. Source and
+target dumps inspected. New mixed native profile preserves short interpreted
+PSG/SCC partitions (no blanket8ms deletion). Public001 retained all743 sounding
+partitions with zero omissions; interpreted attack boundaries are unchanged.
+User owns local_only regression/listening. Changes saved, not committed/pushed.
+See docs/mucomsx_conversion.md and private field note for current scope.
+
+---
+
+# MUCOM musical-layer catch-up (2026-10-29)
+
+MSX checkpoint committed as b78d675; separate private note commit 2f43827.
+The MUCOM port now connects namespaced source HAL, reconstructed source-native
+VGM, MUCOM88 blueprint MUC plus native SMF MIDI, optional sample-based score
+normalization, and shared export controls. FM threshold reaches OPNA/OPM target
+FM and MUCOMSX OPLL/SCC-to-OPNA FM paths. Export default24ms, canonical1ms.
+
+Source products remain available when production MUC fails; PCM has no blueprint.
+Blueprint is MUCOM88 MUC, including for --target mucomsx. Fixed audition settings
+replace source synthesis/dynamics. References retain original source chips.
+See docs/msx_parity_plan.md for scope, defaults and source/target distinctions.
+
+Validation:75 focused checks passed; final blueprint/service16 checks passed,
+then15 service/CLI checks after preserving normalized input song loops. Three
+public source products regenerated and MUCOM88 blueprint compiled. Source loop
+retiming abstains until validated; normalized target input retains enabled loops.
+Architect timing/publication review findings are closed.
+
+Public/authored checks only; user owns local_only regression and listening.
+Do not run private failed songs or broad emulator sweeps. Do not change README.
+Prior MDX removal and curve backport changes are preserved. Unrelated -w.mub must
+not be staged. MUCOM changes are not committed/pushed as part of this checkpoint.
+
+---
+
+# MDX toolchain removal (2026-10-25)
+
+Removed inherited MDX export, compilation/replay, fixture-generator and external
+inspector scripts plus their tool-specific tests. Public CLI no longer accepts
+MDX/OPM output aliases. Native output and MGS compatibility remain; shared pure
+source/structural modules and reference evidence were not purged. Removed the
+corresponding MDX external-tool sections from THIRD_PARTY_NOTICES.md, retaining
+required mapping attribution. README files outside the deleted Rust helper
+are unchanged. Existing local tool installations and generated assets were not
+deleted. Validation results follow in the task's private note. No commit/push.
+
+---
+
+# Shared PSG/SCC source-curve backport (2026-10-25)
+
+Changes saved for: PSG -> OPNA SSG and MUCOMSX PSG/SCC interpretation feeding SCC -> OPNA FM.
+Shared pure engines are synchronized with MSX; native adapters call analyze /
+project at44100Hz before existing structure and target projection. Source
+Segments/controls remain intact. Source-SSG register labels are mapped explicitly;
+mixer writes stay protected. MGSDRV syntax/bank/tie rules were NOT transplanted.
+DCSG and inherited MGS extract_notes are unchanged.
+
+Minimal validation: 9 direct PSG/MUC,14 MUCOMSX source,5 SCC OPNA and11 public/authored MUC conversion tests passed.
+No local_only fixture conversion or broad regression. The user owns listening
+and full regression. Do not launch expensive compilers/emulators/catalog runs.
+README unchanged. See docs/msx_curve_interpretation.md and external field_notes/
+2026-10-25_shared_msx_curve_backport.md. No staging/commit/push. Preserve unrelated
+working-tree files, including MUCOM's pre-existing -w.mub.
+
+---
+
 # Timeout default update (2026-10-24)
 
 export_mucom conversion/compilation stage timeout now defaults to1200 seconds
@@ -153,3 +236,5 @@ source Segment retention, decision CSV contents and short release-tail retention
   normalization 8ms), four changed Python entry/modules compiled, canonical and
   batch CLI help expose the new option, and `git diff --check` passed. No VGM
   fixture conversion or duration sweep was run for this independent-option update.
+
+Additional check: public volume_sweep VGM -> inherited MGS MML succeeded with --dump-passes. MDX-only compatibility options are no longer exposed. scripts/README.md remains user-owned and contains historical MDX tool entries for the user to edit.

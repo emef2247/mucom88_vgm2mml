@@ -165,17 +165,6 @@ class NativeLengthCorrectionTests(unittest.TestCase):
                     self.assertEqual(text.count(f'/* Track {track} */'), 1)
                     self.assertRegex(text, rf'/\* Track {track} \*/\n(?:;[^\n]*\n)*{track} ')
 
-    def test_cli_accepts_opt_in_correction_and_rejects_other_notation(self):
-        fixture = ROOT / 'tests/fixtures/public/opm/mdx_decompiler/tie_controls/tie_controls.vgm'
-        with tempfile.TemporaryDirectory() as temp:
-            command = [sys.executable, str(ROOT / 'vgm2mml.py'), str(fixture), '--target', 'mdx', '--outdir', temp, '--normalize-lengths']
-            run = subprocess.run(command, capture_output=True, text=True, timeout=30)
-            self.assertEqual(run.returncode, 0, run.stderr)
-            self.assertIn('Note normalization: applied', run.stdout)
-            run = subprocess.run(command + ['--notation', 'registers'], capture_output=True, text=True, timeout=30)
-            self.assertEqual(run.returncode, 2)
-            self.assertIn('requires --notation structured', run.stderr)
-
 
 if __name__ == '__main__':
     unittest.main()

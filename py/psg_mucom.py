@@ -118,14 +118,16 @@ def build_source(raw, events, end, *, force=False, omissions=None):
                        chip_type,flags,tuple(controls),not reasons)
 
 
-def musical_notes(analysis):
+def musical_notes(analysis, *, dump_prefix=None, software_volume_curves=True):
     """Reuse MSX note/volume-run interpretation on an explicit source-sample view.
 
     Only this temporary view changes units/event labels. Native Segments remain
     intact; no MGSDRV envelope bank, duration grid or notation is imported.
-    Zero-duration pitch/shape rows retain pending boundaries in extract_notes.
+    Zero-duration pitch/shape rows retain ordered source boundaries.
     """
-    from mml_envelopes import extract_notes
+    from mml_envelopes import Note
+    from psg_scc_performance import analyze, dump as dump_performance
+    from psg_scc_volume_curves import project, dump as dump_curves
 
     def event_type(segment):
         register = segment.register
@@ -133,12 +135,22 @@ def musical_notes(analysis):
             return 'fCA' if register % 2 == 0 else 'fCB'
         if register == 13:
             return 'evS'
-        return segment.ev_type
+        return ({6: 'wNC', 7: 'mode', 8: 'aVC', 9: 'aVC', 10: 'aVC',
+                 11: 'ePL', 12: 'evM'}.get(register, segment.ev_type))
 
     view = {ch: tuple(replace(s, ticks=s.vgmticks, l=s.vgmticks_end-s.vgmticks,
                              ev_type=event_type(s)) for s in rows)
             for ch, rows in analysis.segments.items()}
-    return extract_notes(view, 'psg')
+    performance = analyze(view, 'psg', tick_clock_hz=44100)
+    continuation = project(performance) if software_volume_curves else None
+    if dump_prefix is not None:
+        dump_performance(performance, dump_prefix)
+        if continuation is not None:
+            dump_curves(continuation, str(dump_prefix) + '.continuation', details=True)
+        else:
+            Path(str(dump_prefix)+'.continuation.json').write_text(
+                json.dumps(dict(enabled=False,source_evidence_unchanged=True,reason='Software volume grouping disabled'))+'\n',encoding='utf-8')
+    return (continuation.performance if continuation is not None else performance).to_notes(Note)
 
 
 def dump_musical_notes(analysis, notes, outdir, stem):

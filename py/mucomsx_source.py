@@ -19,7 +19,9 @@ import scc
 import opll
 import opll_segments
 import melody_patterns
-from mml_envelopes import extract_notes
+from mml_envelopes import Note
+import psg_scc_performance
+import psg_scc_volume_curves
 from opll_note_units import group_notes
 from opll_inner_loops import OpllLoopPlan
 from pre_envelope_loops import prepare
@@ -208,7 +210,7 @@ def _dump_notes(path, notes):
                                      json.dumps(note.runs)))
 
 
-def load_source(path, outdir, stem=None, song_loop=True):
+def load_source(path, outdir, stem=None, song_loop=True, *, software_volume_curves=True):
     """Decode and reuse native MSX musical interpretation, without target limits.
 
     A valid requested loop is replayed once with the decoder's continuous chip
@@ -278,7 +280,18 @@ def load_source(path, outdir, stem=None, song_loop=True):
         views = _sample_rows(channels)
         detail = {'melody': native_analysis, 'sample_rows': views}
         if chip != 'opll':
-            notes[chip] = extract_notes(views, chip)
+            performance = psg_scc_performance.analyze(views, chip, tick_clock_hz=44100)
+            continuation = psg_scc_volume_curves.project(performance) if software_volume_curves else None
+            prefix = outdir / f'{stem}.{chip}.source'
+            psg_scc_performance.dump(performance, prefix)
+            if continuation is not None:
+                psg_scc_volume_curves.dump(continuation, str(prefix) + '.continuation', details=True)
+            else:
+                Path(str(prefix)+'.continuation.json').write_text(
+                    json.dumps(dict(enabled=False,source_evidence_unchanged=True,reason='Software volume grouping disabled'))+'\n',encoding='utf-8')
+            detail['performance'] = performance
+            detail['continuation'] = continuation
+            notes[chip] = (continuation.performance if continuation is not None else performance).to_notes(Note)
             detail['source_plans'], detail['representatives'] = prepare(notes[chip], chip)
             for ch, rows in notes[chip].items():
                 for note in rows:

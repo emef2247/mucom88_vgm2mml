@@ -40,7 +40,7 @@ class ConversionTests(unittest.TestCase):
         self.assertEqual(json.loads(curves[0]['volume_runs']),[[15,1000],[10,2000]])
 
     def test_public_scc_uses_fm_and_keeps_original_wave_evidence(self):
-        r=convert_vgm(FIXTURES/'SCCSRC.vgm',self.root,song_loop=False)
+        r=convert_vgm(FIXTURES/'SCCSRC.vgm',self.root,song_loop=False,scc_output='opna-fm')
         text=Path(r['muc_path']).read_text(encoding='cp932')
         self.assertNotIn('#SSGExtend',text)
         self.assertNotIn('@W',text)
@@ -57,6 +57,57 @@ class ConversionTests(unittest.TestCase):
         self.assertTrue(all('yTL,1,' in u['command'] and 'yTL,4,' in u['command'] for u in sounding))
         self.assertTrue(Path(r['voice_bank']).is_file())
 
+    def test_default_native_scc_retains_source_wave_and_volume_runs(self):
+        r=convert_vgm(FIXTURES/'SCCSRC.vgm',self.root,song_loop=False)
+        self.assertEqual(r['scc_projection_policy'],'native_scc5')
+        self.assertEqual(set(r['tracks']),{'SCCA'})
+        text=Path(r['muc_path']).read_text(encoding='cp932')
+        self.assertIn('?WD0={',text)
+        self.assertIn('?DB',text)
+        self.assertNotIn('yTL,',text)
+        self.assertNotIn('#SSGExtend',text)
+        self.assertNotIn('voice_bank',r)
+        bundle=load_source(FIXTURES/'SCCSRC.vgm',self.root/'native_source',song_loop=False)
+        with (self.root/'SCCSRC.mucomsx.units.csv').open() as stream:
+            target=[row for row in csv.DictReader(stream) if row['rest']=='False']
+        source=[note for note in bundle.notes['scc'][0] if not note.rest]
+        self.assertEqual(len(target),len(source))
+        self.assertEqual([json.loads(row['volume_runs']) for row in target],
+                         [[list(run) for run in note.runs] for note in source])
+        with (self.root/'SCCSRC.mucomsx.scc_waves.csv').open() as stream:
+            waves=list(csv.DictReader(stream))
+        self.assertEqual({row['source_waveform_hex'] for row in waves},
+                         {note.segment.waveform_hex for note in source})
+        self.assertEqual(r['fm_short_states']['omitted'],0)
+        self.assertEqual(r['omissions'],[])
+        self.assertTrue(all(proof['token_identity'] for proof in r['macros']['expansion_proof'].values()))
+
+    def test_native_mixed_profile_does_not_delete_short_control_partitions(self):
+        commands=bytearray()
+        for i in range(32):commands.extend((0xd2,0,i,i))
+        commands.extend(bytes.fromhex('d2 01 00 fe d2 01 01 00 d2 02 00 0f d2 03 00 01 '
+            'a0 00 fe a0 01 00 a0 07 3e a0 08 0f 61 03 00 '
+            'd2 01 00 fd a0 00 fd 61 a0 0f d2 03 00 00 a0 08 00 61 e8 03 66'))
+        raw=vgm(commands)
+        r=self.convert(raw,song_loop=False)
+        self.assertEqual(r['scc_projection_policy'],'native_scc5')
+        self.assertFalse(any(a['action']=='omit_short_gate' for a in r['omissions']))
+        with (self.root/'out/authored.mucomsx.units.csv').open() as stream:
+            rows=list(csv.DictReader(stream))
+        tiny=[u for u in rows if u['rest']=='False' and int(u['source_end'])-int(u['source_start'])==3]
+        self.assertTrue(tiny)
+        self.assertTrue(all('%' in row['command'] for row in tiny))
+
+    def test_native_repeat_encoding_limits_preserve_expanded_commands(self):
+        from mucom_structure import limit_repeat_depth,repeat_depth
+        from source_loop_plan import expanded_tokens
+        original='[ @0 [ o4 c%1 [ v12 c%1 ]3 ]4 ]255'
+        target,changes=limit_repeat_depth(original,maximum=2)
+        self.assertEqual(expanded_tokens(target),expanded_tokens(original))
+        self.assertLessEqual(repeat_depth(target),2)
+        self.assertIn(']255',target)
+        self.assertTrue(changes)
+
     def test_public_opll_uses_native_part_with_explicit_voice_assessment(self):
         r=convert_vgm(FIXTURES/'OPLLSRC.vgm',self.root,song_loop=False)
         self.assertIn('MSXA',r['tracks'])
@@ -67,7 +118,7 @@ class ConversionTests(unittest.TestCase):
         self.assertLess(sum(int(row['structural_representative']) for row in structure),len(structure))
         self.assertTrue(all(proof['token_identity'] for proof in r['macros']['expansion_proof'].values()))
 
-    def test_all_five_scc_voices_use_fm_and_psg_remains_native(self):
+    def test_all_five_scc_voices_and_psg_use_separate_native_engines(self):
         commands=bytearray()
         for i in range(128):commands.extend((0xd2,0,i,i&127))
         for ch in range(5):
@@ -77,9 +128,13 @@ class ConversionTests(unittest.TestCase):
         raw=vgm(commands)
         r=self.convert(raw,song_loop=False)
         self.assertEqual(r['native_scc_channels_retained'],5)
-        self.assertEqual(set(r['tracks']),{'MSXD','MSXE','MSXF','A','B','C','H','I'})
+        self.assertEqual(set(r['tracks']),{'MSXD','MSXE','MSXF','SCCA','SCCB','SCCC','SCCD','SCCE'})
         self.assertEqual(r['omissions'],[])
-        self.assertEqual({x['source_channel'] for x in r['routing'] if x['target_chip']=='opna_fm'},set(range(5)))
+        self.assertEqual({x['source_channel'] for x in r['routing'] if x['target_chip']=='scc'},set(range(5)))
+        self.assertEqual(r['native_scc_target_channels'],5)
+        self.assertEqual(r['scc_opna_voices'],[])
+        self.assertNotIn('voice_bank',r)
+        self.assertTrue(r['waveform_count']>0)
         self.assertEqual({x['target_part'] for x in r['routing'] if x['source_chip']=='psg'},
                          {'MSXD','MSXE','MSXF'})
         self.assertTrue(all(x['target_chip']=='psg' for x in r['routing'] if x['source_chip']=='psg'))

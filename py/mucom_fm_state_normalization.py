@@ -93,3 +93,90 @@ def dump_decisions(rows, path):
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def msx_fm_runs(note, chip):
+    """Expose a target note's states in original sample time for CSV inspection."""
+    if note.rest:
+        return []
+    if chip == 'opll':
+        return [(row.tick_start, row.tick_end,
+                 (row.fnum, row.block, row.inst, row.vol, row.sus, item.patch, item.patch_changes))
+                for row, item in zip(note.sample_slices, note.sample_items)]
+    if chip != 'scc':
+        raise ValueError('Only OPLL and SCC-to-OPNA FM notes use this adapter')
+    result = []
+    cursor = note.start
+    for volume, length in note.runs:
+        result.append((cursor, cursor + length, volume))
+        cursor += length
+    return result
+
+
+def filter_msx_fm_note(note, chip, *, part='', max_samples=FM_SHORT_STATE_SAMPLES, seams=()):
+    """Select held target FM states without editing native notes or their gates.
+
+    SCC pitch/waveform changes already delimit interpreted musical units. Only
+    their internal target-FM level runs are eligible here. OPLL patch, sustain,
+    key and zero-time side effects stay protected, as does each release state.
+    """
+    import copy
+    from types import SimpleNamespace
+
+    runs = msx_fm_runs(note, chip)
+    if not runs:
+        return note, []
+    protected = set()
+    reasons = {}
+    def protect(index, reason):
+        protected.add(index)
+        reasons.setdefault(index, set()).add(reason)
+    last_positive = next((i for i in reversed(range(len(runs))) if runs[i][1] > runs[i][0]), None)
+    if last_positive is not None:
+        protect(last_positive, 'release_tail_state')
+    for index, (start, end, state) in enumerate(runs):
+        if start == end:
+            protect(index, 'ordered_zero_time_control')
+        if any(start <= seam <= end for seam in seams):
+            protect(index, 'song_loop_carried_state')
+        if chip == 'opll':
+            row, item = note.sample_slices[index], note.sample_items[index]
+            if item.patch_changes:
+                protect(index, 'ordered_patch_writes')
+                if index:
+                    protect(index - 1, 'ordered_patch_writes')
+            if index:
+                old, old_item = note.sample_slices[index - 1], note.sample_items[index - 1]
+                if (old.inst, old.sus, old.keyon, old_item.patch) != (row.inst, row.sus, row.keyon, item.patch):
+                    protect(index - 1, 'tone_sustain_or_key_change')
+                    protect(index, 'tone_sustain_or_key_change')
+    kept, dropped = select_state_runs(runs, max_samples=max_samples, protected=protected)
+    view = SimpleNamespace(**vars(note))
+    view.runs = []
+    slices, items = [], []
+    for position, index in enumerate(kept):
+        start = note.start if position == 0 else runs[index][0]
+        end = runs[kept[position + 1]][0] if position + 1 < len(kept) else note.start + note.length
+        if chip == 'opll':
+            row = copy.copy(note.sample_slices[index])
+            row.ticks = row.tick_start = start
+            row.l = end - start
+            row.tick_end = end
+            item = replace(note.sample_items[index], tick=start, duration=end-start, advance=end-start)
+            slices.append(row)
+            items.append(item)
+            volume = 15 - row.vol
+        else:
+            volume = runs[index][2]
+        view.runs.append((volume, end-start))
+    if chip == 'opll':
+        view.sample_slices = tuple(slices)
+        view.sample_items = tuple(items)
+    dropped = set(dropped)
+    decisions = [dict(part=part, gate_start=note.start, gate_end=note.start+note.length,
+        control_index=index, source_start=start, source_end=end,
+        source_segment_ids=';'.join(map(str, note.segment_indices)), source_event_ids='',
+        action='omit_short_state' if index in dropped else 'retain', protected=index in protected,
+        protection_reason=';'.join(sorted(reasons.get(index, ()))), threshold_samples=max_samples)
+        for index, (start, end, _) in enumerate(runs)]
+    return view, decisions

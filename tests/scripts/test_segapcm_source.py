@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT / 'py'), str(ROOT / 'scripts')]
 from conversion_config import inspect_source, select_mdx_route
 from vgm_reader import parse_vgm
-from export_mdx import run_batch
 
 
 def vgm(commands, *, sega=True, loop=None):
@@ -114,59 +113,6 @@ class SegaPcmSourceTests(unittest.TestCase):
             source.write_bytes(vgm(b'\xc0\x00'))
             with self.assertRaises(ValueError):
                 inspect_source(source)
-
-    def test_cli_fm_equivalence_and_failed_target_retains_source(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            plain, mixed = root / 'plain.vgm', root / 'mixed.vgm'
-            plain.write_bytes(vgm(fm(), sega=False, loop=0))
-            mixed.write_bytes(vgm(block(b'\x80\x81') + write(0x86, 0) + fm(), loop=0))
-            def run(source, out, *options):
-                result = subprocess.run([sys.executable, str(ROOT / 'vgm2mml.py'), str(source), '--target', 'mdx',
-                                         '--outdir', str(out), '--title', 'authored', *options],
-                                        capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            result = subprocess.run([sys.executable, str(ROOT / 'vgm2mml.py'), str(mixed), '--target', 'mdx',
-                                     '--outdir', str(root / 'source')], capture_output=True, text=True)
-            self.assertNotEqual(result.returncode, 0)
-            report = json.loads((root / 'source/mixed.conversion.json').read_text())
-            self.assertEqual(report['status'], 'blocked')
-            self.assertFalse(list((root / 'source').glob('*.mml')))
-            self.assertTrue((root / 'source/mixed.segapcm.segments.csv').is_file())
-            run(plain, root / 'plain')
-            run(mixed, root / 'mixed', '--fm-only')
-            a = (root / 'plain/plain.mdx.mml').read_text()
-            b = (root / 'mixed/mixed.mdx.mml').read_text()
-            self.assertEqual(a, b)
-            self.assertIn(' L', ' ' + b.replace('\n', ' '))
-            report = json.loads((root / 'mixed/mixed.conversion.json').read_text())
-            self.assertEqual(report['excluded_sources'][0]['chip'], 'segapcm')
-            self.assertTrue((root / 'mixed/mixed.segapcm.segments.csv').is_file())
-            self.assertTrue((root / 'mixed/mixed.opm.segments.csv').is_file())
-            self.assertFalse(list((root / 'mixed').glob('*.pdx')))
-
-    def test_export_option_and_source_only_does_not_compile(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            source, generator = root / 'authored.vgm', root / 'helper'
-            source.write_bytes(vgm(fm() + write(0x86, 0)))
-            generator.touch()
-            def convert(command, **kwargs):
-                self.assertIn('--fm-only', command)
-                return subprocess.CompletedProcess(command, 1, '', 'test stop before compiler')
-            with patch('export_mdx.subprocess.run', side_effect=convert):
-                result = run_batch(source, root / 'fm', generator=generator, fm_only=True)[0]
-            self.assertEqual(result['status'], 'conversion_failed')
-            def analyzed(command, **kwargs):
-                out = Path(command[command.index('--outdir') + 1])
-                (out / 'authored.conversion.json').write_text('{"status":"source_analyzed"}')
-                return subprocess.CompletedProcess(command, 0, '', '')
-            with patch('export_mdx.subprocess.run', side_effect=analyzed), \
-                    patch('export_mdx.compile_mxc') as compiler:
-                result = run_batch(source, root / 'source', generator=generator)[0]
-            compiler.assert_not_called()
-            self.assertEqual(result['status'], 'target_projection_failed')
-            self.assertIn('--fm-only', result['detail'])
 
 
 if __name__ == '__main__':

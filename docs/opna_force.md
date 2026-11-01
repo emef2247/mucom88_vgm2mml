@@ -1,3 +1,9 @@
+## Historical MDX tooling scope
+
+MDX tool commands below are retained as historical/reference context. These
+scripts and their external toolchain are no longer shipped here; use
+x68k_vgm2mml for MDX generation, compilation and inspection.
+
 > この文書は継承した **MDXターゲット** の説明です。
 > 本リポジトリの通常CLIでは `--target mdx --force` と指定します。
 > 既定MUCの `--force` は、[MUC固有の適用範囲](mucom_force.md)を参照してください。
