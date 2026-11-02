@@ -63,7 +63,7 @@ def tone(period):
     return f'D{detune} o{o}', NOTES[n], dict(projected_opna_period=period, detune=detune, octave=o)
 
 
-def choose_timing(notes, end, loop, bound_ms):
+def choose_timing(notes, end, loop, bound_ms, clock_hz=CLOCK):
     if not math.isfinite(bound_ms) or not 0 < bound_ms <= 100:
         raise ConversionError('MUCOMSX timing bound must be in (0,100] milliseconds')
     times = {0,end}; protected = ([dict(start_vgmticks=0,end_vgmticks=end)] if end>0 else [])
@@ -88,7 +88,7 @@ def choose_timing(notes, end, loop, bound_ms):
     # Slowest feasible interrupt, preserving complete sounding gates. Short
     # control intervals may share a tick but ordered command evidence remains.
     for timer in range(256):
-        period=Fraction((256-timer)*2304*44100,CLOCK)
+        period=Fraction((256-timer)*2304*44100,clock_hz)
         if period>requested_bound/2:continue
         lower=[max(0,math.ceil((t-bound)/period)) for t in times]
         upper=[math.floor((t+bound)/period) for t in times]
@@ -101,7 +101,7 @@ def choose_timing(notes, end, loop, bound_ms):
     if selected is None:
         raise ConversionError('MUCOMSX Timer-B cannot preserve gates within timing bound')
     timer,period,ticks=selected
-    return ticks,dict(clock_hz=CLOCK,timer_b=timer,whole_note_clocks=128,
+    return ticks,dict(clock_hz=clock_hz,timer_b=timer,whole_note_clocks=128,
         timer_unit='2304 master clocks; verified against authored native export',
         samples_per_tick=float(period),max_error_samples=float(max(abs(ticks[t]*period-t) for t in times)),
         boundary_bound_ms=bound_ms,quantization_budget_ms=bound_ms/2,

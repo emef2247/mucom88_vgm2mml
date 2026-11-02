@@ -59,7 +59,7 @@ def _ssg_note(segment):
     return NOTES[midi % 12], midi // 12 - 1
 
 
-def _shift_state(state, clock_hz):
+def _shift_state(state, clock_hz, shifts=(-1, 0, 1, 2, 3)):
     """Re-express (fnum, block) at the block minimizing target detune.
 
     project_state spells at the state's own block, which suits sources
@@ -69,14 +69,16 @@ def _shift_state(state, clock_hz):
     detune of hundreds. Shifting (fnum, block) by (x2^k, -k) keeps
     fnum * 2**block — and therefore the projected frequency — exact,
     so only the spelling changes. The source state is not modified;
-    the original values remain in the native segments CSV.
+    the original values remain in the native segments CSV. Callers
+    working on a pre-scaled state (an intentional frequency change)
+    restrict ``shifts`` so the search cannot undo the scaling.
     """
     if state.fnum is None or state.block is None:
         return state
     target = state.fnum * clock_hz * 6 / state.fm_prescale_divisor \
         / TARGET_CLOCK_HZ
     best = None
-    for shift in (-1, 0, 1, 2, 3):
+    for shift in shifts:
         block = state.block - shift
         if not 0 <= block <= 7:
             continue

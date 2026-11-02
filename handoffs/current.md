@@ -402,3 +402,53 @@ stage). Full suite: failure set name-identical to the pristine
 
 Next: user's MUCOM88 compile + listening check; SSG noise/envelope
 rendering; OPN -> MUCOMSX mapping.
+
+---
+
+# makoto-opn: MUCOMSX dialect generated under OPN assumptions (2026-11-02)
+
+User request (2026-11-02): an option whose MML is the OPNA/MUCOMSX
+target dialect but generated under OPN assumptions, for the
+PC-60msx55 OPN cartridge (YM2203, MSX mode I/O #14-17h
+Makoto-compatible; the board exists so MUCOMSX itself can drive it).
+S4 (SSG noise) confirmation is deferred by the user until after
+this mode exists, since it gives a hardware path to check with.
+
+New py/opn_mucomsx.py behind `--target mucomsx-opn`: source
+analysis, gates, short-state filter and SSG segments are the OPN
+S1-S3 assets; expression is the opn2_mucomsx adapter shape
+(choose_timing, SourceLoopPlan, compact_tracks, 8192-byte DAT bank
+with 0-based voice ids, 65536/1023 capacity checks) restricted to
+FM parts A B C and SSG parts D E F with mono=True projection. No
+rhythm, ADPCM, pan or LFO output.
+
+Clock compensation: the board clocks the YM2203 at 4 MHz while
+MUCOMSX compiles for the 8 MHz Makoto frame, so each FM state is
+projected at twice its frame frequency (fnum doubled, then the
+detune-minimizing shift search restricted to non-negative shifts
+so it cannot fall back to the un-doubled family) and the Timer-B
+value is selected for 4 MHz (mucomsx_conversion.choose_timing
+gained a clock_hz keyword, default unchanged). The SSG is not
+compensated: its effective clock is 2 MHz on both boards, and tone
+spelling reuses the native route's. Pitch evidence on Sorcerian
+Opening: projected frame frequencies are exactly 2x the source
+(0.0 Hz error against the doubled states). SSG noise/envelope
+segments keep the native staging (blocker / --force omission).
+
+Explicitly unverified, recorded in the report diagnostics for the
+hardware trial: MUCOMSX detecting an OPN board as Makoto, its
+driver running from the YM2203 Timer B, and the t-value
+passthrough the timing selection assumes.
+
+Verification: authored tests test_opn_mucomsx.py (5: octave-above-
+native spelling with identical detune, part restriction, bank
+shape, SSG tone spelling, noise gating, non-OPN rejection) pass.
+Sorcerian Opening converts without force (1,052 units, Timer-B
+254 at 4 MHz); Hydra converts with --force (SSG noise omissions
+recorded pre-quantization: 2,275 vs the native route's 2,120
+post-quantization count; rendered rests identical). Full suite
+failure set name-identical to the pristine a765ff5 baseline (17).
+
+Next: user's hardware trial on the PC-60msx55 (detection, pitch,
+tempo), then the deferred S4 confirmation via this path; NES
+import to mucom88 (OPNA/mucomsx first) is the following stage.
