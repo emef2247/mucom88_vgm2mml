@@ -498,3 +498,19 @@ import to mucom88 (OPNA/mucomsx first) is the following stage.
   14F+3E, identical to the branch baseline.
 - Remaining: MUCOMSX compile + OPNA cartridge listening,
   layered mode, OPN-side (mucomsx-opn) equivalent.
+
+## OPLL layered output (2026-11-03)
+- --opll-output gains 'layered': native OPLL parts remain the
+  sounding base and each is doubled on an OPNA FM part (measured-law
+  voices) as an added layer. A channel that gets no FM part simply
+  has no layer; nothing falls silent. Channels beyond the native
+  six-part interface stay the existing explicit error.
+- Verified: routing and per-part structure counts are symmetric
+  between each native part and its doubling part; new tests pass
+  (10 in test_mucomsx_opll_opna.py).
+- Known limit: dense full-length tracks overflow the MUCOMSX
+  64KB MUC input capacity when doubled (MSLND01: 108775/65536
+  bytes, explicit failure). The lead channel dominates and barely
+  loop-folds; the doubling mechanism itself compacts normally.
+- Remaining: MUCOMSX compile + cartridge listening for opna-fm
+  and layered; layer volume balance is a listening-stage item.
