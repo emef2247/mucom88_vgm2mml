@@ -460,3 +460,15 @@ import to mucom88 (OPNA/mucomsx first) is the following stage.
   until the ADPCM-B stage (S2, next).
 - Gradius II 02 generates end to end (local_only check).
 - Suite failures unchanged: 14F+3E (environment baseline).
+
+## NES DPCM -> ADPCM-B (2026-11-03, 8a62665)
+- S2 done: DPCM decodes from trace sample memory, re-encodes
+  as ADPCM-B, packs via mucom_aux.pack_pcm into <stem>_pcm.bin
+  (#pcm header), part K notes spell rate via delta-N, fixed
+  level 160. Looped samples play once per trigger (recorded).
+- vm0/V-4 tokens from the native route are NOT used: the
+  MUCOMSX macro lexer rejects them and silently disables
+  structured compaction (64KB limit failure mode).
+- Remaining: real-hardware listening (MUCOMSX compile + OPNA
+  cartridge), DPCM note level calibration, song-loop replay
+  for NES (bundle loop_sample is still None).
