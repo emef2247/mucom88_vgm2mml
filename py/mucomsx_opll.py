@@ -295,3 +295,126 @@ def project_rhythm_segments(segments, clock_map, end_clock, *, source_end_sample
             'Individual levels use an approximate inverse attenuation mapping',
             'Waveform and envelope fidelity are not established',
         ])
+
+
+# --- Measured OPLL -> OPNA law (OPNA as the sounding target) -----------
+# Field law from the emulator-measured audit (see the project field
+# notes on the OPLL>OPNA calibration): algorithm 4 with the source pair
+# on M1 -> C1 and the second pair silenced; modulator TL identity;
+# MULTI through the pg ratio map; EG AR 2a+4 / D1R 2d+3 / D2R 2r+3
+# (percussive sustain rate; the canonical SR is RR<<1) / RR r+1, with
+# field value zero staying zero; KSR1 -> KS2; SL and FB identity;
+# DT 0. Preset parameters come from the established set's consolidated
+# header (py/opll_presets.py) when it is available.
+
+_MUL_MAP = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 12, 12, 15, 15)
+_SILENT_OP = (1, 127, 31, 0, 0, 15)
+_PRESETS_CACHE = ...
+
+
+def _established_presets():
+    global _PRESETS_CACHE
+    if _PRESETS_CACHE is ...:
+        import opll_presets
+        _PRESETS_CACHE = opll_presets.load_presets()
+    return _PRESETS_CACHE
+
+
+def _resolve_presets(presets):
+    if presets is None:
+        return _established_presets()
+    return presets or None
+
+
+def _decode_patch(patch):
+    patch = _patch_bytes(patch)
+
+    def op(control, rate, rel, ksl, tl, ws):
+        return dict(am=control >> 7 & 1, vib=control >> 6 & 1,
+                    egt=control >> 5 & 1, ksr=control >> 4 & 1,
+                    multi=control & 15, ksl=ksl, tl=tl,
+                    ar=rate >> 4, dr=rate & 15, sl=rel >> 4, rr=rel & 15,
+                    ws=ws)
+    return dict(fb=patch[3] & 7,
+                mod=op(patch[0], patch[4], patch[6], patch[2] >> 6,
+                       patch[2] & 63, patch[3] >> 3 & 1),
+                car=op(patch[1], patch[5], patch[7], patch[3] >> 6,
+                       None, patch[3] >> 4 & 1))
+
+
+def _opna_op_fields(op, tl):
+    ar = 0 if op['ar'] == 0 else min(31, 2 * op['ar'] + 4)
+    d1r = 0 if op['dr'] == 0 else min(31, 2 * op['dr'] + 3)
+    d2r = 0 if (op['egt'] or op['rr'] == 0) else min(31, 2 * op['rr'] + 3)
+    rr = 0 if op['rr'] == 0 else min(15, op['rr'] + 1)
+    ks = 2 if op['ksr'] else 0
+    return (_MUL_MAP[op['multi']], tl, ks << 6 | ar, op['am'] << 7 | d1r,
+            d2r, op['sl'] << 4 | rr)
+
+
+def _dat_record(fb, ops):
+    """Build a 32-byte DAT record from four operator field tuples in
+    DAT storage order OP1, OP3, OP2, OP4 = (M1, C1, M2, C2)."""
+    record = bytearray(32)
+    for index, fields in enumerate(ops):
+        for group, value in enumerate(fields):
+            record[1 + 4 * group + index] = value
+    record[25] = (fb & 7) << 3 | 4
+    return bytes(record)
+
+
+def _opna_ops_from_voice(voice):
+    return [_opna_op_fields(voice['mod'], voice['mod']['tl']),
+            _opna_op_fields(voice['car'], 0), _SILENT_OP, _SILENT_OP]
+
+
+def patch_voice_opna(patch, inst=0, presets=None):
+    """Return a 32-byte OPNA DAT record that renders a YM2413 voice on
+    OPNA FM under the measured law, for playback on OPNA hardware (not
+    as a proxy for later OPLL ROM-preset selection).
+
+    Presets (inst 1..15) use the established set's OPNA table when the
+    consolidated header is available; otherwise, and for custom
+    patches, the law is applied to the patch bytes directly. The
+    carrier TL is 0 because note volume is the MML v value in this
+    conversion. LFO depth/rate, KSL and the half-sine waveform have no
+    DAT representation; patch_projection_report_opna records them.
+    """
+    if inst:
+        resolved = _resolve_presets(presets)
+        if resolved is not None:
+            row = resolved['opna'][inst - 1]
+            ops = [(op['mul'], op['tl'], op['ks'] << 6 | op['ar'],
+                    op['am'] << 7 | op['d1r'], op['d2r'],
+                    op['d1l'] << 4 | op['rr']) for op in row['ops']]
+            return _dat_record(row['fb'], ops)
+        patch = preset_patch(inst)
+    voice = _decode_patch(patch)
+    return _dat_record(voice['fb'], _opna_ops_from_voice(voice))
+
+
+def patch_projection_report_opna(patch, inst=0, presets=None):
+    """Preset source and explicit losses for the OPNA rendering."""
+    if inst:
+        resolved = _resolve_presets(presets)
+        if resolved is not None:
+            import opll_presets
+            voice = opll_presets.decode_base_row(resolved['base'][inst - 1])
+            source = 'established_header_opna_table'
+        else:
+            voice = _decode_patch(preset_patch(inst))
+            source = 'ymfm_reconstruction_via_measured_law'
+    else:
+        voice = _decode_patch(patch)
+        source = 'custom_patch_via_measured_law'
+    losses = []
+    if voice['mod']['ksl'] or voice['car']['ksl']:
+        losses.append('KSL has no OPNA counterpart; recorded and dropped')
+    if voice['mod']['ws'] or voice['car']['ws']:
+        losses.append('Half-sine waveform approximated by sine')
+    if (voice['mod']['am'] or voice['car']['am']
+            or voice['mod']['vib'] or voice['car']['vib']):
+        losses.append('LFO depth and rate are not projected in this stage; '
+                      'source AM/VIB flags remain in source evidence')
+    return dict(projection='opll_to_opna_measured_law', exact=False,
+                preset_source=source, losses=losses)

@@ -84,7 +84,7 @@ def _dependencies(muc):
 
 
 def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='native',
-                             psg_enhance_cents=None, scc_output='native', runtime_profile=None, muc_only=False,
+                             psg_enhance_cents=None, scc_output='native', opll_output='native', runtime_profile=None, muc_only=False,
                              mucom88=None, pcm_only=False, pcm_policy='strict',
                              pcm_profile='standard', opm_channel_policy='auto',
                              normalization_ms=8.0, score_tempo=225, **unused):
@@ -94,6 +94,10 @@ def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='n
         raise ValueError('SCC output must be native or opna-fm')
     if target!='mucomsx' and scc_output!='native':
         raise ValueError('SCC routing requires --target mucomsx')
+    if opll_output not in ('native','opna-fm'):
+        raise ValueError('OPLL output must be native or opna-fm')
+    if target!='mucomsx' and opll_output!='native':
+        raise ValueError('OPLL routing requires --target mucomsx')
     if opll_rhythm not in ('native','layered'):
         raise ValueError('OPLL rhythm routing must be native or layered')
     if target!='mucomsx' and (opll_rhythm!='native' or psg_enhance_cents is not None):
@@ -130,7 +134,7 @@ def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='n
 def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, song_loop=True,
               normalize_lengths=True, normalization_ms=8.0, fm_state_ms=24.0, pcm_only=False, pcm_policy='strict', force=False,
               opm_channel_policy='auto', pcm_profile='standard', target='mucom',
-              opll_rhythm='native', psg_enhance_cents=None, scc_output='native', runtime_profile=None,
+              opll_rhythm='native', psg_enhance_cents=None, scc_output='native', opll_output='native', runtime_profile=None,
               score_normalize=False, score_tempo=225, score_guided_loops=False,
               legacy_loops=False, legacy_macros=False, software_volume_curves=True,
               dump_passes=True, _quiet=False):
@@ -209,6 +213,7 @@ def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, so
                 command.extend(('--opm-channel-policy',opm_channel_policy))
             if target=='mucomsx':
                 command.extend(('--scc-output',scc_output))
+                if opll_output!='native':command.extend(('--opll-output',opll_output))
                 if opll_rhythm!='native':command.extend(('--opll-rhythm',opll_rhythm))
                 if psg_enhance_cents is not None:
                     command.extend(('--psg-enhance-cents',str(psg_enhance_cents)))
@@ -794,6 +799,8 @@ def main():
                         help='MUCOMSX local DOS/openMSX profile (default: .tools/mucomsx-runtime.json)')
     parser.add_argument('--opll-rhythm', choices=('native','layered'), default='native',
                         help='MUCOMSX only: native OPLL percussion, optionally doubled by OPNA rhythm')
+    parser.add_argument('--opll-output', choices=('native','opna-fm'), default='native',
+                        help='MUCOMSX OPLL routing: native (default) or OPNA FM measured-law rendering')
     parser.add_argument('--scc-output', choices=('native','opna-fm'), default='native',
                         help='MUCOMSX: native five-channel SCC (default), or legacy OPNA FM approximation')
     parser.add_argument('--psg-enhance-cents', type=float,
@@ -836,7 +843,7 @@ def main():
         if requested:
             parser.error('--target mucomsx does not support '+', '.join(requested))
     if args.target!='mucomsx' and any(
-            option.split('=',1)[0] in ('--opll-rhythm','--psg-enhance-cents','--scc-output')
+            option.split('=',1)[0] in ('--opll-rhythm','--psg-enhance-cents','--scc-output','--opll-output')
             for option in sys.argv[1:]):
         parser.error('--opll-rhythm and --psg-enhance-cents require --target mucomsx')
     try:
@@ -850,7 +857,7 @@ def main():
                          dump_passes=args.dump_passes,
                          pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,force=args.force,pcm_profile=args.pcm_profile,
                          opm_channel_policy=args.opm_channel_policy,target=args.target,
-                         opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,scc_output=args.scc_output,
+                         opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,scc_output=args.scc_output,opll_output=args.opll_output,
                          runtime_profile=args.runtime_profile)
     except (OSError, ValueError) as error:
         parser.error(str(error))

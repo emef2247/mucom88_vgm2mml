@@ -142,7 +142,7 @@ def note_state(chip,note,at_end=False):
 def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops=True,
                 macros=True,force=False,normalization_ms=8.0,normalize_lengths=True,
                 timing_bound_ms=8.0,fm_state_ms=1.0,dump_passes=True,opll_rhythm='native',psg_enhance_cents=None,software_volume_curves=True,
-                legacy_loops=False,score_guided_loops=False,enhance_macros=True,scc_output='native'):
+                legacy_loops=False,score_guided_loops=False,enhance_macros=True,scc_output='native',opll_output='native'):
     from fm_state_runs import fm_short_state_samples
     state_bound=fm_short_state_samples(fm_state_ms)
     out=Path(outdir);out.mkdir(parents=True,exist_ok=True)
@@ -155,6 +155,8 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
     if opll_rhythm not in ('native','layered'):raise ConversionError('Unknown OPLL rhythm routing')
     if scc_output not in ('native','opna-fm'):raise ConversionError('SCC output must be native or opna-fm')
     report['options']['scc_output']=scc_output
+    if opll_output not in ('native','opna-fm'):raise ConversionError('OPLL output must be native or opna-fm')
+    report['options']['opll_output']=opll_output
     score_guided_loops=score_guided_loops and not legacy_loops
     loop_strategy='retained' if legacy_loops else 'structural'
     stage='source_analysis'
@@ -199,6 +201,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         enhance_requested=psg_enhance_cents is not None and bool(bundle.notes.get('psg'))
         fm_parts=set();fm_available=iter(('A','B','C','H','I','J'));routing=[]
         report['scc_projection_policy']='native_scc5' if scc_output=='native' else 'all_opna_fm_additive4'
+        report['opll_projection_policy']='native_opll_rom_selection' if opll_output=='native' else 'opna_fm_measured_law'
         for chip,channels in bundle.notes.items():
             for ch,rows in sorted(channels.items()):
                 if chip=='opll' and ch>=9:continue
@@ -217,7 +220,15 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     tracks['D']=list(rows);origins['D']=(chip,ch)
                     routing.append(dict(source_chip='nesapu',source_channel=3,target_part='D',target_chip='opna_ssg'))
                     continue
-                if (chip=='scc' and scc_output=='opna-fm') or ch>=len(PARTS[chip]):
+                if chip=='opll' and opll_output=='opna-fm':
+                    part=next(fm_available,None)
+                    if part is None:
+                        for note in rows:
+                            if not note.rest:assessment(chip,ch,note,'omit_part','OPNA FM channel capacity')
+                        if not force:raise ConversionError('OPNA FM channel capacity exceeded; --force permits diagnosed omission')
+                        continue
+                    fm_parts.add(part)
+                elif (chip=='scc' and scc_output=='opna-fm') or ch>=len(PARTS[chip]):
                     if chip=='opll':
                         for note in rows:
                             if not note.rest:assessment(chip,ch,note,'omit_part','MUCOMSX native OPLL six-melody interface; OPNA substitution disabled')
@@ -385,7 +396,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             rhythm_by_tick={u.start:u for u in rhythm_units}
             report['rhythm_projection']=rhythm_report
             (passes/(stem+'.mucomsx.rhythm.json')).write_text(json.dumps(rhythm_report,indent=2)+'\n',encoding='utf-8')
-        voice_ids={};voices={};scc_fm_voices={};scc_waves={};pitch_rows=[];units_rows=[];structure_reports={};rendered={};plain={};state_reports={}
+        voice_ids={};voices={};scc_fm_voices={};scc_waves={};pitch_rows=[];units_rows=[];structure_reports={};rendered={};plain={};state_reports={};opna_voice_reports=[]
         def voice_id(record):
             if record not in voice_ids:
                 if len(voice_ids)>=32:raise ConversionError('MUCOMSX used-FM-voice capacity 32 exceeded')
@@ -525,7 +536,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     pitch_rows.append(dict(part=part,source_start=note.start,source_period=s.tone_period,
                         source_clock_hz=source_clock,**pinfo))
                 else:
-                    from mucomsx_opll import preset_patch,patch_voice,patch_projection_report,project_pitch
+                    from mucomsx_opll import preset_patch,patch_voice,patch_voice_opna,patch_projection_report,patch_projection_report_opna,project_pitch
                     words=[];continuation=note.continuation;signature=[];child_keys=[];child_commands=[]
                     for state,item in zip(note.sample_slices,note.sample_items):
                         a,b=max(note.start,state.tick_start),min(note.start+note.length,state.tick_end)
@@ -533,7 +544,13 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                         patch=preset_patch(state.inst) if state.inst else bytes.fromhex(item.patch)
                         if item.patch_changes:
                             assessment(chip,ch,note,'approximate_patch_trajectory','Native MSX-MUSIC ROM-preset projection cannot reproduce held arbitrary patch writes')
-                        record=patch_voice(patch);vid=voice_id(record)
+                        if part in fm_parts:
+                            record=patch_voice_opna(patch,state.inst)
+                            if record not in voice_ids:
+                                opna_voice_reports.append(patch_projection_report_opna(patch,state.inst))
+                        else:
+                            record=patch_voice(patch)
+                        vid=voice_id(record)
                         fnum,block=state.fnum,state.block
                         volume=15-state.vol
                         if not fnum:
@@ -555,7 +572,10 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                             projected_opna_period=p.target_fnum,detune=p.detune,octave=p.target_block))
                     command=' '.join(child_commands)
                     key=('opll',tuple(signature),note.continuation)
-                    assessment(chip,ch,note,'approximate_opll_voice','MUCOMSX OPNA-DAT to OPLL ROM-preset selection; sustain/custom-wave/AM/VIB/EG fidelity not guaranteed')
+                    if part in fm_parts:
+                        assessment(chip,ch,note,'measured_opll_opna_voice','Measured OPLL-to-OPNA voice law on OPNA FM; KSL, half-sine waveform and LFO depth recorded as per-voice losses')
+                    else:
+                        assessment(chip,ch,note,'approximate_opll_voice','MUCOMSX OPNA-DAT to OPLL ROM-preset selection; sustain/custom-wave/AM/VIB/EG fidelity not guaranteed')
                 commands.append(command);keys.append(key)
                 children.append((child_commands or [command],child_keys or [key]))
                 units_rows.append(dict(part=part,note_index=index,source_start=note.start,source_end=note.start+note.length,
@@ -634,6 +654,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         report['psg_state_spelling']={part:{key:value for key,value in detail.items() if key!='units'}
             for part,detail in state_reports.items()}
         report['scc_opna_voices']=[voice.report for voice in scc_fm_voices.values()]
+        report['opll_opna_voices']=opna_voice_reports
         wave_rows=[dict(wave_id=ident,source_waveform_hex=wave,signed_samples=json.dumps(
             [b if b<128 else b-256 for b in bytes.fromhex(wave)])) for wave,ident in scc_waves.items()]
         dump_rows(passes/(stem+'.mucomsx.scc_waves.csv'),wave_rows,('wave_id','source_waveform_hex','signed_samples'))

@@ -116,7 +116,13 @@ def inspect_source(source):
             unsupported.append(dict(item, reason='Unsupported source chip/stream command'))
     opm_offset = 0x30 if header['version'] >= 0x110 else 0x10
     opm_clock = int.from_bytes(raw[opm_offset:opm_offset + 4], 'little')
-    opll_clock = int.from_bytes(raw[0x10:0x14], 'little') if header['version'] >= 0x110 else 0
+    # Before VGM 1.10, offset 0x10 was the YM2151 clock field. When the
+    # stream uses OPLL and not OPM, attribute the field to OPLL (the
+    # reading the MSX-lineage tools use); with OPM present it stays OPM's.
+    if header['version'] >= 0x110 or ('opll' in chips and 'opm' not in chips):
+        opll_clock = int.from_bytes(raw[0x10:0x14], 'little')
+    else:
+        opll_clock = 0
     opn2_clock = int.from_bytes(raw[0x2c:0x30], 'little') if header['version'] >= 0x150 else 0
     opn_clock = int.from_bytes(raw[0x44:0x48], 'little') if header['version'] >= 0x110 else 0
     declarations = dict(opm=opm_clock, opna=header['opna_clock_raw'],

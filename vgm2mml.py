@@ -623,6 +623,8 @@ def main(argv=None):
                         help='MUCOMSX: native OPLL percussion, optionally also layer OPNA rhythm')
     parser.add_argument('--scc-output',choices=('native','opna-fm'),default='native',
                         help='MUCOMSX SCC routing: native five-channel extension (default) or legacy OPNA FM')
+    parser.add_argument('--opll-output',choices=('native','opna-fm'),default='native',
+                        help='MUCOMSX OPLL routing: native parts with OPLL ROM-preset selection (default) or OPNA FM parts with the measured OPLL-to-OPNA voice law')
     parser.add_argument('--psg-enhance-cents',type=float,
                         help='MUCOMSX: add an OPNA SSG copy of native PSG at the specified detune (e.g. -11)')
     from musical_hal.score_normalization import add_arguments
@@ -650,11 +652,11 @@ def main(argv=None):
     elif args.target=='mucomsx-opn':
         from opn_mucomsx import ConversionError,convert_vgm
     elif args.target=='md':
-        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
+        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native' or args.opll_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')
         from opn2_muc import ConversionError,convert_vgm
     else:
-        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native':
+        if args.opll_rhythm!='native' or args.psg_enhance_cents is not None or args.scc_output!='native' or args.opll_output!='native':
             parser.error('Native MSX enhancement options require --target mucomsx')
         from conversion_config import inspect_source as _inspect_source
         try:
@@ -676,7 +678,7 @@ def main(argv=None):
                  legacy_loops=args.legacy_loops,score_guided_loops=args.score_guided_loops,
                  enhance_macros=not args.legacy_macros)
     if args.target=='mucomsx':
-        options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,scc_output=args.scc_output)
+        options.update(opll_rhythm=args.opll_rhythm,psg_enhance_cents=args.psg_enhance_cents,scc_output=args.scc_output,opll_output=args.opll_output)
     if args.target=='mucom':
         options.update(pcm_only=args.pcm_only,pcm_policy=args.pcm_policy,
                        pcm_profile=args.pcm_profile,opm_channel_policy=args.opm_channel_policy)

@@ -42,7 +42,7 @@ def convert_vgm(input_path, outdir, *, dump_passes=True, diagnostics_outdir=None
                 force=False, software_volume_curves=True, legacy_loops=False,
                 score_guided_loops=False, enhance_macros=True,
                 opll_rhythm='native', psg_enhance_cents=None,
-                scc_output='native', **_ignored):
+                scc_output='native', opll_output='native', **_ignored):
     from musical_hal.native_imports import analyze_source
     from musical_hal.native_imports.opn2_music import build_opn2_gates
     from musical_hal.native_imports.opna_music import (audit_fm_key_edges,
@@ -50,7 +50,7 @@ def convert_vgm(input_path, outdir, *, dump_passes=True, diagnostics_outdir=None
                                                        semantic_state)
     from mucom_fm import project_state
     if opll_rhythm != 'native' or psg_enhance_cents is not None \
-            or scc_output != 'native':
+            or scc_output != 'native' or opll_output != 'native':
         raise ConversionError(
             'MSX source options do not apply to the OPN2 mapping')
     source, output = Path(input_path), Path(outdir)
