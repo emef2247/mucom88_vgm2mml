@@ -205,9 +205,8 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                 if not any(not n.rest for n in rows):continue
                 if chip=='nesapu':
                     if ch==5:
-                        for note in rows:
-                            if not note.rest:assessment(chip,ch,note,'omit_part','NES DPCM awaits its ADPCM-B projection stage')
-                        if not force:raise ConversionError('NES DPCM present; its ADPCM-B projection is a separate stage (--force permits diagnosed omission)')
+                        tracks['K']=list(rows);origins['K']=(chip,ch)
+                        routing.append(dict(source_chip=chip,source_channel=ch,target_part='K',target_chip='opna_adpcm_b'))
                         continue
                     from nes_music import MELODIC_PARTS
                     part=MELODIC_PARTS[ch];fm_parts.add(part)
@@ -264,7 +263,28 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                 source_config=bundle.metadata.get('nes_source_config'),
                 trace_issues=bundle.metadata.get('nes_trace_issues'),
                 dpcm_events=bundle.metadata.get('nes_dpcm_events'),
-                policy='melodic lanes to OPNA additive FM by waveform; noise to SSG; DPCM gated to its ADPCM-B stage')
+                policy='melodic lanes to OPNA additive FM by waveform; noise to SSG; DPCM decoded to ADPCM-B part K')
+        nes_pcm=None
+        if is_nes and 'K' in tracks:
+            from mucom_aux import pack_pcm
+            import hashlib as _hashlib
+            dpcm=bundle.analyses['nesapu']['dpcm']
+            keys=sorted(dpcm['samples'])
+            sample_objs=[SimpleNamespace(sample_id=index,
+                encoded_bytes=dpcm['samples'][key]['encoded'],
+                sha256=_hashlib.sha256(dpcm['samples'][key]['encoded']).hexdigest())
+                for index,key in enumerate(keys)]
+            bank,mapping,bindings=pack_pcm(SimpleNamespace(
+                samples=sample_objs,
+                segments=[SimpleNamespace(sample_id=obj.sample_id) for obj in sample_objs]))
+            nes_pcm=dict(bank=bank,mapping=mapping,bindings=bindings,
+                         keys=keys,samples=dpcm['samples'],
+                         key_ids={key: index for index, key in enumerate(keys)},
+                         event_samples=dpcm['event_samples'])
+            report['nes_dpcm']=dict(bindings=bindings,
+                sample_count=len(sample_objs),
+                bank_bytes=len(bank),
+                level_map='DPCM level (L-63.5)/63.5; fixed note level 160 (uncalibrated)')
         native_scc_parts={part for part,(chip,_) in origins.items() if chip=='scc' and part not in fm_parts}
         if is_dcsg:report['dcsg_projection']=bundle.metadata['dcsg_projection_assessments']
         rhythm_segments={ch:rows for ch,rows in bundle.segments.get('opll',{}).items() if ch>=9}
@@ -428,6 +448,32 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     pitch_rows.append(dict(part=part,source_start=note.start,
                         source_period=note.segment.tone_period,
                         source_clock_hz=bundle.header['scc_clock_raw']&0x3fffffff,**pinfo))
+                elif chip=='nesapu' and part=='K':
+                    from mucom_aux import _pcm_spelling
+                    state=note.segment
+                    sample_key=nes_pcm['event_samples'][state.event_index]
+                    sample=nes_pcm['samples'][sample_key]
+                    slot=nes_pcm['mapping'][nes_pcm['key_ids'][sample_key]]
+                    octave,note_index,detune=_pcm_spelling(SimpleNamespace(
+                        rate_num=sample['rate_num'],rate_den=sample['rate_den']))
+                    from mucom_fm import NOTES as _NOTES
+                    # The DMC has no per-trigger volume: one fixed
+                    # note level for every sample, with the balance
+                    # carried by the encoded waveforms themselves.
+                    level=160
+                    duration=ticks[note.start+note.length]-ticks[note.start]
+                    # The native route's vm0/V-4 volume-mode tokens
+                    # are not part of the MUCOMSX dialect model here
+                    # (its macro lexer rejects them, which silently
+                    # disables structured compaction); the default
+                    # volume mode applies.
+                    command=(f'@{slot} v{level} p0 o{octave} D{detune} '
+                             +timed(_NOTES[note_index],duration))
+                    key=('nes_dpcm',slot,note.length,tuple(note.runs))
+                    assessment(chip,ch,note,'approximate_nes_dpcm_adpcm',
+                        'DPCM decoded and re-encoded as ADPCM-B; looped samples play once per trigger in this stage'
+                        if sample['loop'] else
+                        'DPCM decoded and re-encoded as ADPCM-B for part K')
                 elif chip=='nesapu':
                     from mucomsx_scc_opna import project_waveform,volume_controls
                     from nes_mucomsx import project_pitch_hz
@@ -606,6 +652,9 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             for index,record in voices.items():bank[index*32:(index+1)*32]=record
             bank_path=out/(stem+'.dat');header.append('#voice '+bank_path.name)
             report['voice_bank']=str(bank_path)
+        if nes_pcm is not None:
+            header.append('#pcm '+(stem+'_pcm.bin'))
+            report['pcm_bank']=str(out/(stem+'_pcm.bin'))
         prefix='C128 t'+str(timing['timer_b'])+' q0 '
         if scc_waves:
             from mucomsx_scc_native import wave_definition
@@ -632,6 +681,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         if any(len(line.encode('cp932'))>1023 for line in lines):raise ConversionError('MUCOMSX physical line exceeds 1023 bytes')
         path=out/(stem+'.muc')
         if voices:bank_path.write_bytes(bank)
+        if nes_pcm is not None:(out/(stem+'_pcm.bin')).write_bytes(nes_pcm['bank'])
         path.write_bytes(encoded)
         dump_rows(passes/(stem+'.mucomsx.units.csv'),units_rows)
         dump_rows(passes/(stem+'.mucomsx.pitch.csv'),pitch_rows)

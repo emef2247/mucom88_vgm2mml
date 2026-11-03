@@ -49,14 +49,14 @@ MELODIC_BODY = b''.join((
 ))
 
 DPCM_BODY = b''.join((
-    write(21, 0x11),   # enable pulse1 + DMC
+    write(21, 0x01),   # enable pulse1 only; DMC setup comes first
     write(0, 0xBF),    # pulse1: duty 50%, halt, constant volume 15
     write(2, 0xAC),
     write(3, 0x01),
     write(16, 0x0F),   # DMC rate index 15, no loop, no IRQ
     write(18, 0x00),   # sample address $C000
     write(19, 0x03),   # sample length (3*16)+1 bytes
-    write(21, 0x11),   # re-enable DMC with 0 bytes remaining -> trigger
+    write(21, 0x11),   # enable DMC with 0 bytes remaining -> trigger
     b'\x62' * 30,
     write(21, 0x00),
     b'\x66',
@@ -82,21 +82,22 @@ class NesMucomsxTests(unittest.TestCase):
         self.assertEqual(routing[('nesapu', 3)], 'D')
         self.assertIn(b'A ', muc.replace(b'\r\n', b'\n').replace(b'\n', b'\n '))
 
-    def test_dpcm_gated_without_force(self):
+    def test_dpcm_projects_to_adpcm_b_part_k(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / 'song.vgm'
             source.write_bytes(build_vgm(DPCM_BODY, dpcm_block=bytes([0xAA] * 64)))
-            with self.assertRaises(ConversionError) as caught:
-                convert_vgm(source, Path(tmp) / 'out')
-            self.assertIn('DPCM', str(caught.exception))
-
-    def test_dpcm_omitted_with_force(self):
-        report, _ = self.convert(DPCM_BODY, dpcm_block=bytes([0xAA] * 64),
-                                 force=True)
-        self.assertEqual(report['status'], 'generated')
-        omitted = [row for row in report['omissions']
-                   if row['chip'] == 'nesapu' and row['channel'] == 5]
-        self.assertTrue(omitted)
+            report = convert_vgm(source, Path(tmp) / 'out')
+            self.assertEqual(report['status'], 'generated')
+            routing = {(row['source_chip'], row['source_channel']): row['target_part']
+                       for row in report['routing']}
+            self.assertEqual(routing[('nesapu', 5)], 'K')
+            self.assertEqual(report['nes_dpcm']['sample_count'], 1)
+            bank = Path(report['pcm_bank'])
+            self.assertTrue(bank.is_file())
+            self.assertGreater(len(bank.read_bytes()), 1024)
+            muc = Path(report['muc_path']).read_bytes()
+            self.assertIn(b'#pcm song_pcm.bin', muc)
+            self.assertIn(b'@1 v160 p0', muc)
 
 
 if __name__ == '__main__':

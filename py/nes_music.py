@@ -242,6 +242,37 @@ def load_nes_bundle(path, outdir, stem=None, song_loop=True):
     if dpcm_rows:
         notes.setdefault('nesapu', {})[5] = _group_notes(dpcm_rows)
 
+    # Decode each played DPCM sample once and re-encode it as
+    # ADPCM-B for the part-K bank. The decoded level sequence is
+    # the source waveform at the trigger's DMC bit rate; the
+    # fixed linear map to int16 is a level convention, not a
+    # per-sample normalization. Playbacks keep their own rate
+    # through the note's delta-N spelling at render time.
+    from musical_hal.nesapu import DMC_RATE_PERIODS, _decode_dpcm, \
+        _sample_memory
+    from pcm_mucom import encode_adpcm_b
+    memory, _covered = _sample_memory(raw)
+    dpcm_samples, event_samples = {}, {}
+    played = {slice_.event_index for slice_ in trace.dpcm_slices}
+    for index in sorted(played):
+        event = events[index]
+        key = (event.address, event.length_bytes, event.rate_index)
+        event_samples[index] = key
+        if key in dpcm_samples:
+            continue
+        data = bytes(memory.get(event.address + offset, 0)
+                     for offset in range(event.length_bytes))
+        levels = _decode_dpcm(data, event.level)
+        values = [int(round((level - 63.5) / 63.5 * 32767))
+                  for level in levels]
+        encoded, _pad = encode_adpcm_b(values)
+        dpcm_samples[key] = dict(
+            encoded=encoded, rate_num=clock_hz,
+            rate_den=DMC_RATE_PERIODS[event.rate_index],
+            loop=bool(event.loop), address=event.address,
+            length_bytes=event.length_bytes,
+            rate_index=event.rate_index)
+
     outdir.mkdir(parents=True, exist_ok=True)
     stem = stem or path.stem
     paths = {}
@@ -265,6 +296,9 @@ def load_nes_bundle(path, outdir, stem=None, song_loop=True):
         analyses[chip] = dict(sample_rows={ch: [] for ch in channels},
                               source_plans=plans, representatives=representatives,
                               source_kind='nesapu')
+    if 'nesapu' in analyses:
+        analyses['nesapu']['dpcm'] = dict(samples=dpcm_samples,
+                                          event_samples=event_samples)
     seg_map = {'nesapu': {ch: rows for ch, rows in segments.items()
                           if isinstance(ch, int)}}
     if 'psg' in segments:
