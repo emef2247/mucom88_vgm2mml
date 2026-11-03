@@ -452,3 +452,11 @@ failure set name-identical to the pristine a765ff5 baseline (17).
 Next: user's hardware trial on the PC-60msx55 (detection, pitch,
 tempo), then the deferred S4 confirmation via this path; NES
 import to mucom88 (OPNA/mucomsx first) is the following stage.
+
+## NES APU/FDS -> MUCOMSX (2026-11-03, a65984b)
+- S1 done: py/nes_music.py bundle (DCSG precedent), routing
+  pulse1->A, pulse2->B, triangle->C, FDS->H (OPNA additive FM by
+  waveform), noise->SSG D. DPCM gated (error / --force omission)
+  until the ADPCM-B stage (S2, next).
+- Gradius II 02 generates end to end (local_only check).
+- Suite failures unchanged: 14F+3E (environment baseline).
