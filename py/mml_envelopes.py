@@ -143,6 +143,9 @@ def settings(segment, chip):
     pitch = (segment.tone_period, segment.octave, segment.scale)
     if chip == 'scc':
         return pitch + (segment.waveform_id, segment.enabled)
+    if chip == 'nesapu':
+        return pitch + (segment.kind, segment.duty, segment.wave_id,
+                        getattr(segment, 'event_index', -1))
     return pitch + (segment.mode, segment.noise_period if segment.mode & 2 else 0,
                     segment.envelope_enabled,
                     segment.envelope_period if segment.envelope_enabled else 0,

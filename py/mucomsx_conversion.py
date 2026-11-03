@@ -168,10 +168,15 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         from vgm_io import read_vgm_bytes
         from vgm_timing import command_times
         raw=read_vgm_bytes(input_path)
-        is_dcsg=any(e.command in (0x50,0x30) for e in command_times(raw))
+        _commands=tuple(command_times(raw))
+        is_dcsg=any(e.command in (0x50,0x30) for e in _commands)
+        is_nes=any(e.command==0xb4 for e in _commands)
         if is_dcsg:
             from dcsg_music import load_dcsg_bundle
             bundle=load_dcsg_bundle(input_path,passes,stem,song_loop=song_loop)
+        elif is_nes:
+            from nes_music import load_nes_bundle
+            bundle=load_nes_bundle(input_path,passes,stem,song_loop=song_loop)
         else:bundle=load_source(input_path,passes,stem,song_loop=song_loop,software_volume_curves=software_volume_curves)
         report['source']=dict(paths=bundle.paths,loop=bundle.metadata,
             first_end_sample=bundle.first_end_sample,end_sample=bundle.end_sample)
@@ -198,6 +203,21 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             for ch,rows in sorted(channels.items()):
                 if chip=='opll' and ch>=9:continue
                 if not any(not n.rest for n in rows):continue
+                if chip=='nesapu':
+                    if ch==5:
+                        for note in rows:
+                            if not note.rest:assessment(chip,ch,note,'omit_part','NES DPCM awaits its ADPCM-B projection stage')
+                        if not force:raise ConversionError('NES DPCM present; its ADPCM-B projection is a separate stage (--force permits diagnosed omission)')
+                        continue
+                    from nes_music import MELODIC_PARTS
+                    part=MELODIC_PARTS[ch];fm_parts.add(part)
+                    tracks[part]=list(rows);origins[part]=(chip,ch)
+                    routing.append(dict(source_chip=chip,source_channel=ch,target_part=part,target_chip='opna_fm'))
+                    continue
+                if chip=='psg' and is_nes:
+                    tracks['D']=list(rows);origins['D']=(chip,ch)
+                    routing.append(dict(source_chip='nesapu',source_channel=3,target_part='D',target_chip='opna_ssg'))
+                    continue
                 if (chip=='scc' and scc_output=='opna-fm') or ch>=len(PARTS[chip]):
                     if chip=='opll':
                         for note in rows:
@@ -239,6 +259,12 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     target_chip='opna_ssg',enhancement_cents=psg_enhance_cents))
             report['psg_enhancement']=dict(cents=psg_enhance_cents,policy='explicit detuned SSG layer; quantized periods; shared-noise limitations retained')
         report['routing']=routing
+        if is_nes:
+            report['nes_projection']=dict(
+                source_config=bundle.metadata.get('nes_source_config'),
+                trace_issues=bundle.metadata.get('nes_trace_issues'),
+                dpcm_events=bundle.metadata.get('nes_dpcm_events'),
+                policy='melodic lanes to OPNA additive FM by waveform; noise to SSG; DPCM gated to its ADPCM-B stage')
         native_scc_parts={part for part,(chip,_) in origins.items() if chip=='scc' and part not in fm_parts}
         if is_dcsg:report['dcsg_projection']=bundle.metadata['dcsg_projection_assessments']
         rhythm_segments={ch:rows for ch,rows in bundle.segments.get('opll',{}).items() if ch>=9}
@@ -283,12 +309,13 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
             if chip!='opll' and part not in fm_parts:continue
             selected=[]
             for note in rows:
-                state_input.extend(state_rows(part,note,chip))
+                run_chip='scc' if chip=='nesapu' else chip
+                state_input.extend(state_rows(part,note,run_chip))
                 if normalize_lengths:
-                    view,detail=filter_msx_fm_note(note,chip,part=part,max_samples=state_bound,seams=(() if loop is None else (loop,)))
+                    view,detail=filter_msx_fm_note(note,run_chip,part=part,max_samples=state_bound,seams=(() if loop is None else (loop,)))
                     decisions.extend(detail)
                 else:view=note
-                state_output.extend(state_rows(part,view,chip))
+                state_output.extend(state_rows(part,view,run_chip))
                 selected.append(view)
             tracks[part]=selected
         dump_rows(passes/(stem+'.mucomsx.fm_states.input.csv'),state_input,fields)
@@ -401,10 +428,32 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                     pitch_rows.append(dict(part=part,source_start=note.start,
                         source_period=note.segment.tone_period,
                         source_clock_hz=bundle.header['scc_clock_raw']&0x3fffffff,**pinfo))
+                elif chip=='nesapu':
+                    from mucomsx_scc_opna import project_waveform,volume_controls
+                    from nes_mucomsx import project_pitch_hz
+                    from nes_music import frequency_hz
+                    state=note.segment;wave=state.waveform_hex
+                    if wave not in scc_fm_voices:scc_fm_voices[wave]=project_waveform(wave)
+                    voice=scc_fm_voices[wave];vid=voice_id(voice.dat)
+                    p=project_pitch_hz(frequency_hz(state.kind,state.tone_period,state.clock_hz,state.mod_ratio))
+                    words=[f'@{vid} v15 '+' '.join(p.commands)];cursor=note.start;continuation=note.continuation
+                    for volume,length in note.runs:
+                        duration=ticks[cursor+length]-ticks[cursor]
+                        if continuation and duration>0:words.append('&')
+                        words.extend(volume_controls(voice,volume))
+                        text=timed(p.note,duration)
+                        if text:words.append(text);continuation=True
+                        cursor+=length
+                    command=' '.join(words);key=(settings(state,'nesapu'),note.length,tuple(note.runs),note.continuation)
+                    assessment(chip,ch,note,'approximate_nesapu_opna','NES lane waveform mapped to one OPNA additive FM channel; waveform and envelope losses reported')
+                    pitch_rows.append(dict(part=part,source_start=note.start,source_period=state.tone_period,
+                        source_clock_hz=state.clock_hz,
+                        projected_opna_period=p.target_fnum,detune=p.detune,octave=p.target_block))
                 elif chip=='psg':
                     s=note.segment
-                    source_clock=(bundle.metadata['dcsg_source_config']['clock_hz'] if is_dcsg else
-                        bundle.header['ay_clock_raw']&0x3fffffff)
+                    if is_dcsg:source_clock=bundle.metadata['dcsg_source_config']['clock_hz']
+                    elif is_nes:source_clock=SSG_CLOCK
+                    else:source_clock=bundle.header['ay_clock_raw']&0x3fffffff
                     if source_clock<=0:raise ConversionError('Sounding source requires declared clock')
                     if chip=='psg' and bundle.header.get('ay_type')==0x10 and bundle.header.get('ay_flags',0)&0x10:source_clock/=2
                     period=getattr(s,'target_period',round(s.tone_period*SSG_CLOCK/source_clock))
