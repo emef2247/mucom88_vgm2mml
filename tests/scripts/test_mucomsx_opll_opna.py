@@ -103,6 +103,47 @@ class RoutingTests(unittest.TestCase):
              if a['action'] == 'omit_part'}, {6, 7, 8})
 
 
+class LayeredTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+
+    def test_layered_doubles_native_parts_on_opna_fm(self):
+        r = convert_vgm(FIXTURES / 'OPLLSRC.vgm', self.root,
+                        song_loop=False, opll_output='layered')
+        self.assertIn('MSXA', r['tracks'])
+        self.assertIn('A', r['tracks'])
+        actions = {a['action'] for a in r['assessments']}
+        self.assertIn('approximate_opll_voice', actions)
+        self.assertIn('measured_opll_opna_voice', actions)
+        self.assertTrue(any(x.get('layer') == 'doubling'
+                            for x in r['routing']))
+        self.assertEqual(r['opll_projection_policy'],
+                         'native_plus_opna_fm_layer')
+        self.assertTrue(r['opll_opna_voices'])
+        bank = Path(r['voice_bank']).read_bytes()
+        records = {bank[i:i + 32] for i in range(0, len(bank), 32)}
+        # The native proxy record and the measured-law record for the
+        # same source preset coexist as distinct DAT entries.
+        self.assertIn(patch_voice(preset_patch(1)), records)
+        self.assertTrue(any(
+            patch_voice_opna(bytes(8), 1, presets) in records
+            for presets in (None, False)))
+
+    def test_layered_excess_stays_a_native_interface_error(self):
+        commands = bytearray()
+        for ch in range(9):
+            commands.extend((0x51, 0x30 + ch, 0x10, 0x51, 0x10 + ch, 0x80,
+                             0x51, 0x20 + ch, 0x17))
+        commands.extend((0x61, 0xb8, 0x0b, 0x66))
+        source = self.root / 'authored.vgm'
+        source.write_bytes(vgm(commands))
+        with self.assertRaisesRegex(ConversionError, 'no automatic OPNA'):
+            convert_vgm(source, self.root / 'out', song_loop=False,
+                        opll_output='layered')
+
+
 class Pre110ClockTests(unittest.TestCase):
     def _write(self, body, version=0x101):
         raw = bytearray(0x100)

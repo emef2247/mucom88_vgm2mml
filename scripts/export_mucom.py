@@ -94,8 +94,8 @@ def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='n
         raise ValueError('SCC output must be native or opna-fm')
     if target!='mucomsx' and scc_output!='native':
         raise ValueError('SCC routing requires --target mucomsx')
-    if opll_output not in ('native','opna-fm'):
-        raise ValueError('OPLL output must be native or opna-fm')
+    if opll_output not in ('native','opna-fm','layered'):
+        raise ValueError('OPLL output must be native, opna-fm or layered')
     if target!='mucomsx' and opll_output!='native':
         raise ValueError('OPLL routing requires --target mucomsx')
     if opll_rhythm not in ('native','layered'):
@@ -799,8 +799,8 @@ def main():
                         help='MUCOMSX local DOS/openMSX profile (default: .tools/mucomsx-runtime.json)')
     parser.add_argument('--opll-rhythm', choices=('native','layered'), default='native',
                         help='MUCOMSX only: native OPLL percussion, optionally doubled by OPNA rhythm')
-    parser.add_argument('--opll-output', choices=('native','opna-fm'), default='native',
-                        help='MUCOMSX OPLL routing: native (default) or OPNA FM measured-law rendering')
+    parser.add_argument('--opll-output', choices=('native','opna-fm','layered'), default='native',
+                        help='MUCOMSX OPLL routing: native (default), OPNA FM measured-law rendering, or layered doubling')
     parser.add_argument('--scc-output', choices=('native','opna-fm'), default='native',
                         help='MUCOMSX: native five-channel SCC (default), or legacy OPNA FM approximation')
     parser.add_argument('--psg-enhance-cents', type=float,

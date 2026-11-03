@@ -623,8 +623,8 @@ def main(argv=None):
                         help='MUCOMSX: native OPLL percussion, optionally also layer OPNA rhythm')
     parser.add_argument('--scc-output',choices=('native','opna-fm'),default='native',
                         help='MUCOMSX SCC routing: native five-channel extension (default) or legacy OPNA FM')
-    parser.add_argument('--opll-output',choices=('native','opna-fm'),default='native',
-                        help='MUCOMSX OPLL routing: native parts with OPLL ROM-preset selection (default) or OPNA FM parts with the measured OPLL-to-OPNA voice law')
+    parser.add_argument('--opll-output',choices=('native','opna-fm','layered'),default='native',
+                        help='MUCOMSX OPLL routing: native parts with OPLL ROM-preset selection (default), OPNA FM parts with the measured OPLL-to-OPNA voice law, or layered (native parts doubled on OPNA FM)')
     parser.add_argument('--psg-enhance-cents',type=float,
                         help='MUCOMSX: add an OPNA SSG copy of native PSG at the specified detune (e.g. -11)')
     from musical_hal.score_normalization import add_arguments

@@ -155,7 +155,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
     if opll_rhythm not in ('native','layered'):raise ConversionError('Unknown OPLL rhythm routing')
     if scc_output not in ('native','opna-fm'):raise ConversionError('SCC output must be native or opna-fm')
     report['options']['scc_output']=scc_output
-    if opll_output not in ('native','opna-fm'):raise ConversionError('OPLL output must be native or opna-fm')
+    if opll_output not in ('native','opna-fm','layered'):raise ConversionError('OPLL output must be native, opna-fm or layered')
     report['options']['opll_output']=opll_output
     score_guided_loops=score_guided_loops and not legacy_loops
     loop_strategy='retained' if legacy_loops else 'structural'
@@ -201,7 +201,7 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
         enhance_requested=psg_enhance_cents is not None and bool(bundle.notes.get('psg'))
         fm_parts=set();fm_available=iter(('A','B','C','H','I','J'));routing=[]
         report['scc_projection_policy']='native_scc5' if scc_output=='native' else 'all_opna_fm_additive4'
-        report['opll_projection_policy']='native_opll_rom_selection' if opll_output=='native' else 'opna_fm_measured_law'
+        report['opll_projection_policy']={'native':'native_opll_rom_selection','opna-fm':'opna_fm_measured_law','layered':'native_plus_opna_fm_layer'}[opll_output]
         for chip,channels in bundle.notes.items():
             for ch,rows in sorted(channels.items()):
                 if chip=='opll' and ch>=9:continue
@@ -268,6 +268,23 @@ def convert_vgm(input_path,outdir,*,diagnostics_outdir=None,song_loop=True,loops
                 routing.append(dict(source_chip='psg',source_channel=origins[native][1],target_part=shadow,
                     target_chip='opna_ssg',enhancement_cents=psg_enhance_cents))
             report['psg_enhancement']=dict(cents=psg_enhance_cents,policy='explicit detuned SSG layer; quantized periods; shared-noise limitations retained')
+        if opll_output=='layered':
+            # The native OPLL parts are the sounding base; OPNA FM parts
+            # double them as an added layer. A channel without an FM
+            # part simply has no layer -- it never falls silent.
+            layer_omissions=[]
+            for part,(chip,ch) in list(origins.items()):
+                if chip!='opll' or part not in PARTS['opll']:continue
+                fm_part=next(fm_available,None)
+                if fm_part is None:
+                    layer_omissions.append(dict(source_channel=ch,reason='OPNA FM channel capacity'))
+                    continue
+                fm_parts.add(fm_part)
+                tracks[fm_part]=list(tracks[part]);origins[fm_part]=(chip,ch)
+                routing.append(dict(source_chip='opll',source_channel=ch,target_part=fm_part,
+                    target_chip='opna_fm',layer='doubling'))
+            report['opll_layering']=dict(base='native_opll_parts',layer='opna_fm_doubling',
+                omissions=layer_omissions)
         report['routing']=routing
         if is_nes:
             report['nes_projection']=dict(
