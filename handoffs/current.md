@@ -472,3 +472,29 @@ import to mucom88 (OPNA/mucomsx first) is the following stage.
 - Remaining: real-hardware listening (MUCOMSX compile + OPNA
   cartridge), DPCM note level calibration, song-loop replay
   for NES (bundle loop_sample is still None).
+
+## OPLL -> OPNA FM route for MUCOMSX (2026-11-03)
+- New --opll-output {native, opna-fm} for --target mucomsx
+  (vgm2mml.py and scripts/export_mucom.py). native is the default
+  and byte-identical to before. opna-fm routes OPLL melodic
+  channels onto OPNA FM parts A/B/C/H/I/J with voices built by
+  the measured OPLL->OPNA law (py/mucomsx_opll.py:
+  patch_voice_opna), not as proxies for OPLL ROM selection.
+  FM capacity overflow is an explicit error / --force omission.
+- Presets come from the established set's consolidated header
+  via the new py/opll_presets.py parser (env OPLL_PRESETS_H or
+  the local calibration path). Without the header, the law is
+  applied to the ymfm reconstruction and the report says so
+  (opll_opna_voices / opll_projection_policy in the song report).
+  LFO depth/rate, KSL and half-sine are recorded per-voice losses;
+  layered output is a later stage.
+- inspect_source now attributes the pre-1.10 0x10 clock field to
+  OPLL when the stream uses OPLL and not OPM, so pre-1.10 OPLL
+  VGMs (e.g. MSLND01 v1.01) pass the source gate.
+- Verified: scale fixture native output byte-identical; MSLND01
+  converts in opna-fm mode (5 channels to FM parts, 3 preset
+  voices from the established table); 8 new tests in
+  tests/scripts/test_mucomsx_opll_opna.py. Suite: 1081 tests,
+  14F+3E, identical to the branch baseline.
+- Remaining: MUCOMSX compile + OPNA cartridge listening,
+  layered mode, OPN-side (mucomsx-opn) equivalent.
