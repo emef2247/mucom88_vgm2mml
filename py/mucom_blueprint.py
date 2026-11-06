@@ -119,8 +119,11 @@ def render(performance, guide, stem, *, tempo=225, legacy_loops=False, enhance_m
                 lane[-1]['source_end_sample']=row['source_end_sample']
             else:lane.append(dict(row))
         lanes.extend((identity,index,rows) for index,rows in enumerate(colored))
+    if not lanes and devices and all(d.chip in ('msm6258','msm6295','segapcm','c140') for d in devices.values()):
+        return [],dict(status='not_applicable',reason='PCM-only source has no pitched score',excluded_pcm=len(performance.pcm_packets),decisions=decisions)
     if not lanes:
-        return [],dict(status='not_applicable',reason='No representable non-PCM score parts',excluded_pcm=len(performance.pcm_packets),decisions=decisions)
+        decisions.append(dict(action='empty_score_document',
+            reason='No known pitched score remains after musical interpretation; no notes invented'))
     pages=[]
     for identity,lane,rows in lanes:
         square=devices[identity[0]].chip=='psg' or identity[1]=='ssg'
@@ -131,6 +134,10 @@ def render(performance, guide, stem, *, tempo=225, legacy_loops=False, enhance_m
         if choice is None:
             page={};pages.append(page);choice=page,(SSG[0] if square else FM[0])
         choice[0][choice[1]]=(identity,lane,rows)
+    if not pages:
+        source_id=next((identity for identity,d in devices.items()
+                        if d.chip not in ('msm6258','msm6295','segapcm','c140')), 'source:score')
+        pages=[{'D':((source_id,'unresolved score',0),0,[])}]
     artifacts=[];reports=[]
     for number,page in enumerate(pages):
         name=stem if not number else f'{stem}.part{number+1:02d}'
@@ -138,11 +145,14 @@ def render(performance, guide, stem, *, tempo=225, legacy_loops=False, enhance_m
         lines=[f'#title {name} blueprint','#driver mucomDotNET',
             '; Score only: original volume/envelopes/timbres omitted; fixed audition defaults.',
             f'; Reference tempo {tempo}; target Timer-B {timer}; original integer samples retained in sidecars.']
+        if not lanes:
+            lines.append('; No known pitched score could be notated; this rest-only draft is an editing placeholder.')
+            lines.append('; Inspect blueprint decisions in musical_layer.json; source note durations were not stretched.')
         if any(part in FM for part in page):lines.append('#voice '+bank_name)
         for voice in performance.voices:
             for line in textwrap.wrap(json.dumps(asdict(voice),ensure_ascii=True),width=100):
                 lines.append('; Source voice: '+line)
-        end=max(max(clock.position(performance.end_sample) for clock in clocks.values()),max(r['step_end'] for _,_,rows in page.values() for r in rows))
+        end=max(3,max((clock.position(performance.end_sample) for clock in clocks.values()),default=0),max((r['step_end'] for _,_,rows in page.values() for r in rows),default=0))
         notes=[];structures=[];bodies={};setups={}
         for part,(identity,lane,rows) in page.items():
             lines.append(f'; Part {part}: source {identity[0]} {identity[1]} CH{identity[2]+1}, lane {lane+1}')
@@ -182,4 +192,5 @@ def render(performance, guide, stem, *, tempo=225, legacy_loops=False, enhance_m
         score_notes=[note for report in reports for note in report['score_notes']],
         per_file_reports=reports,source_sha256=performance.source_sha256,
         source_native_unchanged=True,source_volume_and_timbres_executable=False,
+        score_document='notated' if lanes else 'rest_only_placeholder',
         decisions=decisions,score_timing=score_timing)

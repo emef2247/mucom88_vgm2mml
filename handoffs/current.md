@@ -1,3 +1,45 @@
+# MUCOM profiles and independent score-draft products (2026-11-06)
+
+User selects latest origin/claude/upgrade-v2x a02acf3 as baseline. Work is on
+codex/mucom-profile-products; committed in source/profile checkpoints; no push. Existing
+untracked -w.mub and user README remain untouched.
+
+- Shared profile registry for mucom / mucomsx / mucomsx-opn / md. Batch now
+  exposes all four; md and mucomsx-opn require explicit --muc-only (no verified
+  batch compiler adapter for those profiles). Existing compiler dispatch retained.
+- --blueprint-only bypasses production mapping and compilation; emits existing
+  plain MUCOM88 MUC + stdlib SMF MIDI and native-source reference VGM. Profile
+  and dialect/stage statuses are recorded separately. Production files/hashes/
+  successful manifest status survive source-only reruns, even when user edited.
+- User clarifies blueprint is an editable musical score for arranging and
+  instrument work, not playback or exact register reproduction. No minimum
+  note stretching was added. If no notatable non-PCM notes remain, emit an
+  explicitly annotated rest-only MUC/MIDI draft; PCM-only retains prior no-score
+  policy. Source analysis failures remain errors, not hardware exclusions.
+- Existing OPN/OPN2 native analyses now feed HAL units/controls and native VGM;
+  no new target mapper. Native physical frequency uses established denominator21
+  (source/blueprint octave fix), while production MUC is unchanged. Three adapted
+  snapshot provenance hashes updated. OPN SSG prescalers and dual instances retained.
+- Successful empty blueprint retires old owned score group transactionally;
+  failed/skipped groups and user edits stay protected. Publication failure is a
+  failed blueprint-only result, never success.
+
+Validation:88 focused checks pass,0fail/error/skip. Public authored OPLL score
+exported under4profiles: MUC/MIDI/bank/reference bytes identical. Blueprint MUC
+compiled (605B). Authored OPN/OPN2 batch MUC and source products pass; production
+MUC byte-identical to before HAL connection. Rest-only MUC compiled; its MIDI
+parsed as conductor metadata only with0note events. Native source/provenance
+checks and absolute261.1002604Hz oracle included. No local_only regression.
+Ignored evidence:outputs/diagnostics/profile_products_20261106/.
+
+Next: user local_only regression if desired. Muse owns MSX chip-law/LFO/
+vgm_variants consolidation; do not duplicate or change those production laws.
+Known opm_opna Hz inverse/target clock and retained reverse-copy issues are
+recorded externally and remain deferred, not fixed by this work. MUCOMSX newer
+SCC runtime compatibility and md/mucomsx-opn compile adapters remain unclaimed.
+
+---
+
 # Takeover and MSX re-sync to a52e52c (2026-11-01)
 
 The v2.x working tree was committed by the user as codex/upgrade_to_v2.x

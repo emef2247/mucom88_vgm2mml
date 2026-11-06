@@ -15,10 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'py'))
 from mucom_musical_products import _Recovery, _restore_files
 from conversion_config import normalization_samples
+from mucom_profiles import get_target_profile, target_names
 FIELDS = ('input', 'status', 'detail', 'muc', 'mub', 'pcm_bank', 'voice_bank', 'diagnostics',
           'conversion_log', 'compilation_log', 'report', 'report_status', 'report_error',
           'reference_vgm', 'blueprint', 'blueprint_midi', 'blueprint_voice',
-          'source_status', 'source_products_status', 'source_products_detail')
+          'source_status', 'source_products_status', 'source_products_detail',
+          'target_profile', 'blueprint_dialect', 'reference_status', 'blueprint_status')
 
 
 def compile_muc(muc, mub, **kwargs):
@@ -87,9 +89,17 @@ def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='n
                              psg_enhance_cents=None, scc_output='native', opll_output='native', runtime_profile=None, muc_only=False,
                              mucom88=None, pcm_only=False, pcm_policy='strict',
                              pcm_profile='standard', opm_channel_policy='auto',
-                             normalization_ms=8.0, score_tempo=225, **unused):
-    if target not in ('mucom','mucomsx'):
-        raise ValueError('Batch target must be mucom or mucomsx')
+                             normalization_ms=8.0, score_tempo=225, blueprint_only=False, **unused):
+    profile = get_target_profile(target)
+    if blueprint_only and (muc_only or pcm_only):
+        raise ValueError('--blueprint-only cannot be combined with --muc-only or --pcm-only')
+    if blueprint_only and (runtime_profile is not None or mucom88 is not None):
+        raise ValueError('--blueprint-only does not use --runtime-profile or --mucom88')
+    if profile.compiler is None and not (muc_only or blueprint_only):
+        raise ValueError(f'--target {target} requires --muc-only: {profile.generation_only_reason}')
+    if target != 'mucom' and (mucom88 is not None or pcm_only or pcm_policy!='strict' or
+                              pcm_profile!='standard' or opm_channel_policy!='auto'):
+        raise ValueError(f'--target {target} does not support MUCOM88 compiler, PCM or OPM policy options')
     if scc_output not in ('native','opna-fm'):
         raise ValueError('SCC output must be native or opna-fm')
     if target!='mucomsx' and scc_output!='native':
@@ -112,7 +122,7 @@ def _validate_export_options(*, target='mucom', fm_state_ms=24.0, opll_rhythm='n
     if target=='mucomsx':
         if mucom88 is not None or pcm_only or pcm_policy!='strict' or pcm_profile!='standard' or opm_channel_policy!='auto':
             raise ValueError('MUCOMSX export does not support MUCOM88 compiler, PCM or OPM policy options')
-        if not muc_only:
+        if not (muc_only or blueprint_only):
             from mucomsx_runtime import load_profile
             profile = Path(runtime_profile) if runtime_profile is not None else ROOT / '.tools/mucomsx-runtime.json'
             if not profile.is_file():
@@ -137,7 +147,7 @@ def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, so
               opll_rhythm='native', psg_enhance_cents=None, scc_output='native', opll_output='native', runtime_profile=None,
               score_normalize=False, score_tempo=225, score_guided_loops=False,
               legacy_loops=False, legacy_macros=False, software_volume_curves=True,
-              dump_passes=True, _quiet=False):
+              dump_passes=True, blueprint_only=False, _quiet=False):
     runtime_options = _validate_export_options(**locals())
     source, output = Path(source).resolve(), Path(output).resolve()
     if timeout <= 0:
@@ -173,6 +183,8 @@ def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, so
         diagnostics = _bounded(output / '_diagnostics' / stem, output)
         row = dict.fromkeys(FIELDS, '')
         row['input'] = relative.as_posix()
+        row['target_profile'] = target
+        row['blueprint_dialect'] = get_target_profile(target).blueprint_dialect
         stage = 'conversion'
         run_folder = None
         try:
@@ -208,7 +220,9 @@ def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, so
                                   (not software_volume_curves, '--no-software-volume-curves')):
                 if enabled:
                     command.append(flag)
-            if target=='mucom':
+            if blueprint_only:
+                command.append('--blueprint-only')
+            if target=='mucom' and not blueprint_only:
                 command.extend(['--pcm-policy',pcm_policy,'--pcm-profile',pcm_profile])
                 command.extend(('--opm-channel-policy',opm_channel_policy))
             if target=='mucomsx':
@@ -230,44 +244,55 @@ def _run_batch(source, output, *, mucom88=None, muc_only=False, timeout=1200, so
             conversion_log.write_text(result.stdout + result.stderr, encoding='utf-8')
             if result.returncode:
                 raise RuntimeError(result.stdout + result.stderr or f'Converter exited with {result.returncode}')
-            generated_muc = run_folder / (path.stem + '.muc')
-            if not generated_muc.is_file() or not generated_muc.stat().st_size:
-                raise RuntimeError('Converter produced no nonempty musical MUC')
-            dependencies = _dependencies(generated_muc)
-            publications = list(dict.fromkeys([generated_muc, *(p for kind, p in dependencies)]))
-            for artifact in publications:
-                destination = _bounded(folder / artifact.name, output)
-                if destination.exists():
-                    raise ValueError(f'Refusing to replace unowned artifact: {destination}')
-            for artifact in publications:
-                shutil.copyfile(artifact, folder / artifact.name)
-                manifest[stem]['files'][artifact.name] = _digest(folder / artifact.name)
-            muc, mub = folder / generated_muc.name, folder / (path.stem + '.mub')
-            row['muc'] = muc.relative_to(output).as_posix()
-            for kind, field in (('pcm', 'pcm_bank'), ('voice', 'voice_bank')):
-                row[field] = ';'.join((folder / p.name).relative_to(output).as_posix()
-                                      for tag, p in dependencies if tag == kind)
-            if muc_only:
-                row['status'] = 'muc_only'
-                row['detail'] = 'MUC generated; MUB compilation was not requested'
+            if blueprint_only:
+                _source_product_rows(run_folder, path.stem, output, row)
+                if (row['source_status'] != 'passed' or row['reference_status'] != 'passed' or
+                        row['blueprint_status'] not in ('passed', 'not_applicable') or
+                        row['source_products_status'] != 'ready'):
+                    raise ValueError('Blueprint/source reference generation failed; inspect musical_layer.json')
+                row['status'] = 'blueprint_only'
+                row['detail'] = ('Blueprint not applicable (no non-PCM score); source reference generated'
+                                 if row['blueprint_status'] == 'not_applicable' else
+                                 'MUCOM88 blueprint MUC/MIDI and source reference generated; production not requested')
             else:
-                stage = 'compilation'
-                compilation_log = run_folder / 'compilation.log'
-                row['compilation_log'] = compilation_log.relative_to(output).as_posix()
-                try:
-                    if target=='mucomsx':
-                        compile_mucomsx(muc, mub, runtime_options=runtime_options,
-                                        timeout=timeout, log_path=compilation_log)
-                    else:
-                        compile_muc(muc, mub, mucom88=mucom88, timeout=timeout, log_path=compilation_log)
-                    if not mub.is_file() or not mub.stat().st_size:
-                        raise RuntimeError('Compiler produced no nonempty MUB')
-                except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
-                    mub.unlink(missing_ok=True)
-                    raise
-                row['mub'] = mub.relative_to(output).as_posix()
-                manifest[stem]['files'][mub.name] = _digest(mub)
-                row['status'] = 'success'
+                generated_muc = run_folder / (path.stem + '.muc')
+                if not generated_muc.is_file() or not generated_muc.stat().st_size:
+                    raise RuntimeError('Converter produced no nonempty musical MUC')
+                dependencies = _dependencies(generated_muc)
+                publications = list(dict.fromkeys([generated_muc, *(p for kind, p in dependencies)]))
+                for artifact in publications:
+                    destination = _bounded(folder / artifact.name, output)
+                    if destination.exists():
+                        raise ValueError(f'Refusing to replace unowned artifact: {destination}')
+                for artifact in publications:
+                    shutil.copyfile(artifact, folder / artifact.name)
+                    manifest[stem]['files'][artifact.name] = _digest(folder / artifact.name)
+                muc, mub = folder / generated_muc.name, folder / (path.stem + '.mub')
+                row['muc'] = muc.relative_to(output).as_posix()
+                for kind, field in (('pcm', 'pcm_bank'), ('voice', 'voice_bank')):
+                    row[field] = ';'.join((folder / p.name).relative_to(output).as_posix()
+                                          for tag, p in dependencies if tag == kind)
+                if muc_only:
+                    row['status'] = 'muc_only'
+                    row['detail'] = 'MUC generated; MUB compilation was not requested'
+                else:
+                    stage = 'compilation'
+                    compilation_log = run_folder / 'compilation.log'
+                    row['compilation_log'] = compilation_log.relative_to(output).as_posix()
+                    try:
+                        if target=='mucomsx':
+                            compile_mucomsx(muc, mub, runtime_options=runtime_options,
+                                            timeout=timeout, log_path=compilation_log)
+                        else:
+                            compile_muc(muc, mub, mucom88=mucom88, timeout=timeout, log_path=compilation_log)
+                        if not mub.is_file() or not mub.stat().st_size:
+                            raise RuntimeError('Compiler produced no nonempty MUB')
+                    except (OSError, RuntimeError, ValueError, subprocess.TimeoutExpired):
+                        mub.unlink(missing_ok=True)
+                        raise
+                    row['mub'] = mub.relative_to(output).as_posix()
+                    manifest[stem]['files'][mub.name] = _digest(mub)
+                    row['status'] = 'success'
         except subprocess.TimeoutExpired:
             row['status'] = stage + '_failed'
             row['detail'] = f'{stage} timed out after {timeout} seconds'
@@ -340,6 +365,8 @@ def _source_product_rows(run_folder, stem, output, row):
         if not isinstance(report, dict):
             raise ValueError('Invalid source product report')
         row['source_status'] = str(report.get('status', 'unknown'))
+        row['reference_status'] = str(report.get('native_reference', {}).get('status', 'unknown'))
+        row['blueprint_status'] = str(report.get('blueprint', {}).get('status', 'unknown'))
         products = report.get('products', [])
         if not isinstance(products, list):
             raise ValueError('Invalid source product list')
@@ -399,6 +426,8 @@ def _publish_source_products(raw, row, core_output, package, output, entries, ke
     if not candidates:
         return [], {}
     active_groups = {destination.relative_to(package).parts[0] for _, destination in candidates.values()}
+    if raw.get('source_status') == 'passed' and raw.get('blueprint_status') == 'not_applicable':
+        active_groups.add('blueprint')
     owned, claimed = {}, set()
     for owner, entry in entries.items():
         for ownership in ('published', 'source_products'):
@@ -580,8 +609,9 @@ def run_batch(source, output=None, **options):
         if old and old.get('source_path') != str(path):
             raise ValueError(f'Output belongs to another input: {package / key}')
         # Validate all known artifacts, including dependencies, before conversion.
-        owned = _owned_files(package, data['entries'], key)
-        _check_destinations(package, [path.stem + '.muc', path.stem + '.mub'], owned)
+        if not options.get('blueprint_only'):
+            owned = _owned_files(package, data['entries'], key)
+            _check_destinations(package, [path.stem + '.muc', path.stem + '.mub'], owned)
         staged = _bounded(package / '_source_inputs' / path.name, output)
         source_hash = _digest(path)
         if staged.exists():
@@ -654,18 +684,22 @@ def run_batch(source, output=None, **options):
         except (OSError, ValueError) as error:
             row['source_products_status'] = 'publication_failed'
             row['source_products_detail'] = str(error)
+            if options.get('blueprint_only'):
+                row['status'] = 'publication_failed'
+                row['detail'] = str(error)
             for field in _SOURCE_FIELDS:
                 row[field] = ''
         after_source_publication = json.loads(json.dumps(entry))
         backups, installed, owned = {}, [], {}
         complete = row['status'] in ('success', 'muc_only')
-        preserve = not complete and old.get('status') in ('success', 'muc_only')
+        preserve = options.get('blueprint_only', False) or (not complete and old.get('status') in ('success', 'muc_only'))
         try:
             for name in candidate_paths:
                 if reserved.get((package, name), key) != key:
                     raise ValueError(f'Dependency collides with another score or binary: {candidate_paths[name].name}')
-            owned = _owned_files(package, data['entries'], key)
-            _check_destinations(package, [p.name for p in candidate_paths.values()], owned)
+            if not options.get('blueprint_only'):
+                owned = _owned_files(package, data['entries'], key)
+                _check_destinations(package, [p.name for p in candidate_paths.values()], owned)
             if candidate_paths and not preserve:
                 backups = {name: p.read_bytes() for name, (p, _) in owned.items() if p.exists()}
                 temporaries = []
@@ -704,7 +738,8 @@ def run_batch(source, output=None, **options):
             elif preserve:
                 for field in _PRODUCT_FIELDS:
                     row[field] = ''
-                row['detail'] = (row['detail'] + '; prior published bundle retained').strip('; ')
+                if old.get('published'):
+                    row['detail'] = (row['detail'] + '; prior published bundle retained').strip('; ')
         except (OSError, ValueError) as error:
             row['status'] = 'publication_failed'
             row['detail'] = str(error)
@@ -793,7 +828,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('input', type=Path, help='VGM/VGZ file or directory to scan recursively')
     parser.add_argument('--outdir', type=Path, help='Output tree (default: packages beside source files)')
-    parser.add_argument('--target', choices=('mucom','mucomsx'), default='mucom',
+    parser.add_argument('--target', choices=target_names(), default='mucom',
                         help='Musical MUC/MUB target (default: mucom)')
     parser.add_argument('--runtime-profile', type=Path,
                         help='MUCOMSX local DOS/openMSX profile (default: .tools/mucomsx-runtime.json)')
@@ -806,7 +841,9 @@ def main():
     parser.add_argument('--psg-enhance-cents', type=float,
                         help='MUCOMSX only: add an OPNA SSG layer detuned by -100..100 cents')
     parser.add_argument('--mucom88', type=Path, help='Native unattended MUCOM88 compiler')
-    parser.add_argument('--muc-only', action='store_true', help='MUC export without MUB compilation')
+    parser.add_argument('--muc-only', action='store_true', help='MUC export without MUB compilation (required for md / mucomsx-opn)')
+    parser.add_argument('--blueprint-only', action='store_true',
+                        help='Export MUCOM88 blueprint MUC/MIDI and source reference; keep production products')
     parser.add_argument('--force', action='store_true', help='Continue with explicit target omissions and capacity diagnostics')
     parser.add_argument('--opm-channel-policy', choices=('auto','error','omit','dynamic'), default='auto',
                         help='OPM8 to OPNA6: auto uses dynamic six-voice allocation with force; error/omit retain fixed policy')
@@ -836,19 +873,19 @@ def main():
     args = parser.parse_args()
     if '--normalize-lengths' in sys.argv[1:] and '--no-normalize-lengths' in sys.argv[1:]:
         parser.error('--normalize-lengths and --no-normalize-lengths are mutually exclusive')
-    if args.target=='mucomsx':
+    if args.target!='mucom' and not args.blueprint_only:
         unsupported={'--mucom88','--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
         requested=sorted({flag for option in sys.argv[1:] for flag in unsupported
                           if flag.startswith(option.split('=',1)[0])})
         if requested:
-            parser.error('--target mucomsx does not support '+', '.join(requested))
+            parser.error('--target '+args.target+' does not support '+', '.join(requested))
     if args.target!='mucomsx' and any(
             option.split('=',1)[0] in ('--opll-rhythm','--psg-enhance-cents','--scc-output','--opll-output')
             for option in sys.argv[1:]):
         parser.error('--opll-rhythm and --psg-enhance-cents require --target mucomsx')
     try:
         rows = run_batch(args.input, args.outdir, mucom88=args.mucom88,
-                         muc_only=args.muc_only, timeout=args.timeout, song_loop=not args.no_song_loop,
+                         muc_only=args.muc_only, blueprint_only=args.blueprint_only, timeout=args.timeout, song_loop=not args.no_song_loop,
                          normalize_lengths=args.normalize_lengths, normalization_ms=args.normalization_ms,
                          fm_state_ms=args.fm_state_ms, score_normalize=args.score_normalize,
                          score_tempo=args.score_tempo, score_guided_loops=args.score_guided_loops,
@@ -861,7 +898,7 @@ def main():
                          runtime_profile=args.runtime_profile)
     except (OSError, ValueError) as error:
         parser.error(str(error))
-    expected = 'muc_only' if args.muc_only else 'success'
+    expected = 'blueprint_only' if args.blueprint_only else 'muc_only' if args.muc_only else 'success'
     return 0 if all(row['status'] == expected and row['report_status'] != 'failed' for row in rows) else 1
 
 

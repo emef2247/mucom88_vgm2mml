@@ -81,6 +81,28 @@ class BlueprintTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Timer-B'):
             render(p,build_score_guide(p),'slow',tempo=1)
 
+    def test_all_short_score_still_emits_draft_without_invented_notes(self):
+        from dataclasses import replace
+        p=source()
+        unit=replace(p.units[0],start_sample=700,end_sample=800,pitch_curve=((700,440),))
+        p=replace(p,units=(unit,),end_sample=800)
+        products,report=render(p,build_score_guide(p),'short')
+        self.assertEqual(report['score_notes'],[])
+        self.assertEqual(report['score_document'],'rest_only_placeholder')
+        muc=next(row['data'].decode('cp932') for row in products if row['kind']=='blueprint')
+        self.assertIn('editing placeholder',muc)
+        self.assertIn('source opll:0',muc)
+        self.assertTrue(any(row['kind']=='blueprint_midi' for row in products))
+        self.assertEqual(p.units[0].end_sample,800)
+
+    def test_non_pcm_silent_source_still_emits_score_document(self):
+        from dataclasses import replace
+        p=replace(source(),units=(),voices=())
+        products,report=render(p,build_score_guide(p),'silent')
+        self.assertTrue(any(row['relative']=='blueprint/silent.muc' for row in products))
+        self.assertEqual(report['sounding_parts'],0)
+        self.assertEqual(report['score_document'],'rest_only_placeholder')
+
     def test_pcm_only_has_no_blueprint_or_replacement_audio_bank(self):
         p=NativePerformance((NativeDevice('c140:0','c140',0,8000000),),(),(),(),(),(),100,'hash','')
         products,report=render(p,build_score_guide(p),'pcm')

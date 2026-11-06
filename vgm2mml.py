@@ -577,6 +577,36 @@ def _inherited_main():
                     pass
 
 
+def _blueprint_only(args, parser):
+    from conversion_config import normalization_samples
+    from fm_state_runs import fm_short_state_samples
+    from musical_hal.score_normalization import score_tempo
+    from mucom_musical_products import prepare
+    try:
+        normalization_samples(args.normalization_ms)
+        fm_short_state_samples(args.fm_state_ms)
+        score_tempo(args.score_tempo)
+        report = prepare(args.vgm, args.outdir, Path(args.vgm).stem,
+            score_normalize=args.score_normalize, score_tempo=args.score_tempo,
+            score_guided_loops=args.score_guided_loops, legacy_loops=args.legacy_loops,
+            enhance_macros=not args.legacy_macros, force=args.force,
+            dump_passes=args.dump_passes, song_loop=not args.no_song_loop,
+            target_profile=args.target)
+    except (OSError, ValueError) as error:
+        parser.exit(1, f'Blueprint export failed: {error}\n')
+    for stage in ('source', 'native_reference', 'blueprint'):
+        result = report.get(stage, {})
+        print(f"{stage}: {result.get('status', 'unknown')}" +
+              (': ' + str(result.get('detail', result.get('reason', '')))
+               if result.get('detail') or result.get('reason') else ''))
+    if (report.get('source', {}).get('status') != 'passed' or
+            report.get('native_reference', {}).get('status') != 'passed' or
+            report.get('blueprint', {}).get('status') not in ('passed', 'not_applicable')):
+        return 1
+    print('Blueprint dialect: MUCOM88 MUC; production conversion/compilation not requested')
+    return 0
+
+
 def main(argv=None):
     arguments=list(sys.argv[1:] if argv is None else argv)
     selected='mucom'
@@ -592,8 +622,11 @@ def main(argv=None):
             sys.argv=previous
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('vgm',help='Input supported VGM/VGZ')
-    parser.add_argument('--target',choices=('mucom','mucomsx','mucomsx-opn','mgs','md'),default='mucom',
+    from mucom_profiles import target_names
+    parser.add_argument('--target',choices=(*target_names(),'mgs'),default='mucom',
                         help='mucom (default), mucomsx MSX musical MUC, mucomsx-opn MUCOMSX dialect under OPN assumptions, md Mega Drive MUC for mucomMD2vgm, or explicit inherited compatibility target')
+    parser.add_argument('--blueprint-only',action='store_true',
+                        help='Export MUCOM88 blueprint MUC/MIDI and source reference VGM without production mapping')
     parser.add_argument('--outdir',default='outputs')
     parser.add_argument('--dump-passes',action='store_true',help='source/music/structure dumps are always retained')
     parser.add_argument('--diagnostics-outdir')
@@ -635,6 +668,10 @@ def main(argv=None):
     parser.add_argument('--no-software-volume-curves',dest='software_volume_curves',action='store_false',default=True)
     args=parser.parse_args(arguments)
     if args.legacy_loops:args.score_guided_loops=False
+    if args.blueprint_only:
+        if args.pcm_only:
+            parser.error('--blueprint-only cannot be combined with --pcm-only')
+        return _blueprint_only(args, parser)
     if args.target=='mucomsx':
         unsupported={'--pcm-only','--pcm-profile','--pcm-policy','--opm-channel-policy'}
         requested=sorted({flag for option in arguments for flag in unsupported
@@ -688,7 +725,7 @@ def main(argv=None):
             score_normalize=args.score_normalize,score_tempo=args.score_tempo,
             score_guided_loops=args.score_guided_loops,legacy_loops=args.legacy_loops,
             enhance_macros=not args.legacy_macros,force=args.force,dump_passes=args.dump_passes,
-            song_loop=not args.no_song_loop)
+            song_loop=not args.no_song_loop,target_profile=args.target)
     except (OSError,ValueError) as error:
         # Optional source-product/report publication must not block an existing
         # target route; requested retiming still requires its prepared input.

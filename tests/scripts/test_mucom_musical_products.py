@@ -68,6 +68,29 @@ class MusicalProductsTests(unittest.TestCase):
         self.assertTrue(all(d['reason']=='source_song_loop_requires_shared_boundary_validation'
                             for d in report['normalization']['devices']))
 
+    def test_requested_profile_is_metadata_and_blueprint_stays_mucom88(self):
+        report = self.prepare(target_profile='md')
+        self.assertEqual(report['target_profile'], 'md')
+        self.assertEqual(report['blueprint_dialect'], 'mucom88')
+        self.assertIsNone(report['profile']['compiler'])
+        self.assertEqual(report['blueprint']['status'], 'passed')
+
+    def test_successful_pcm_only_rerun_retires_previous_unedited_blueprint(self):
+        self.prepare()
+        self.renderer.render=lambda *args,**kwargs: ([],{'status':'not_applicable','reason':'PCM-only'})
+        report=self.prepare()
+        self.assertEqual(report['blueprint']['status'],'not_applicable')
+        self.assertFalse((self.output/'blueprint/song.muc').exists())
+        self.assertEqual(json.loads((self.output/'song.musical_products.ownership.json').read_text())['blueprint'],{})
+
+    def test_empty_blueprint_does_not_delete_user_edited_previous_score(self):
+        self.prepare()
+        muc=self.output/'blueprint/song.muc';muc.write_bytes(b'user score')
+        self.renderer.render=lambda *args,**kwargs: ([],{'status':'not_applicable','reason':'PCM-only'})
+        report=self.prepare()
+        self.assertEqual(report['blueprint']['status'],'failed')
+        self.assertEqual(muc.read_bytes(),b'user score')
+
     def test_blueprint_failure_keeps_reference(self):
         def fail(*args, **kwargs):
             raise ValueError('authored blueprint failure')

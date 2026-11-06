@@ -127,8 +127,10 @@ def _publish(root, manifest_path, ownership, group, artifacts, source, force):
 
 def prepare(source, output_root, stem, *, score_normalize=False, score_tempo=225,
             score_guided_loops=False, legacy_loops=False, enhance_macros=True,
-            force=False, dump_passes=False, song_loop=True):
+            force=False, dump_passes=False, song_loop=True, target_profile='mucom'):
     """Prepare independent products; target conversion can proceed after any failure."""
+    from mucom_profiles import profile_info
+    profile = profile_info(target_profile)
     root = Path(output_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
     source = Path(source).resolve()
@@ -138,7 +140,8 @@ def prepare(source, output_root, stem, *, score_normalize=False, score_tempo=225
     manifest_path = root/(stem+'.musical_products.ownership.json')
     if source in (report_path.resolve(), manifest_path.resolve()):
         raise ValueError('Musical product metadata would overwrite the source input')
-    report = dict(status='failed', source=dict(status='pending'),
+    report = dict(status='failed', target_profile=profile['name'],
+        blueprint_dialect=profile['blueprint_dialect'], profile=profile, source=dict(status='pending'),
         native_reference=dict(status='pending'), blueprint=dict(status='pending'),
         products=[], conversion_input=str(source), sample_rate=44100,
         source_time_domain='original_source_samples', report_path=str(report_path))
@@ -205,6 +208,7 @@ def prepare(source, output_root, stem, *, score_normalize=False, score_tempo=225
         artifacts, details = mucom_blueprint.render(original, guide, stem, tempo=score_tempo,
             legacy_loops=legacy_loops, enhance_macros=enhance_macros)
         if not artifacts and details.get('status')=='not_applicable':
+            _publish(root, manifest_path, ownership, 'blueprint', [], source, force)
             report['blueprint']=dict(details)
         else:
             if not artifacts:raise ValueError('Blueprint renderer produced no artifacts')

@@ -708,3 +708,15 @@ turned into a rest merely because it falls below a note-duration threshold.
 Retain the source/boundary evidence and existing interpreted attacks; require an
 explicit target timing projection or a diagnosed limitation. This principle does
 not authorize tying every adjacent slice sharing an audibility gate.
+
+
+## Blueprint is an editable musical draft
+
+Blueprint MUC is intended as an arrangement and instrument-editing starting
+point, not exact VGM replay or an audition-fidelity target. Production hardware
+capacity must not silently suppress a non-PCM blueprint; retain voices across
+pages and preserve score/rest/retrigger/repetition structure. A lack of known
+notatable notes is explicitly documented in a rest-only draft rather than
+reported as successful note reconstruction. Do not stretch short notes or invent
+pitches solely to produce sound. Native-source evidence, target projection and
+blueprint decisions remain separate. See [profiles and products](mucom_profiles.md).
