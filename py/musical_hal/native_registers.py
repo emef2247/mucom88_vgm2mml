@@ -180,19 +180,25 @@ def decode_control(device, event, raw, *, order=None, latches=None):
             else:kind={1:'opm_test',0x0f:'opm_noise',0x10:'opm_timer_a_high',0x11:'opm_timer_a_low',
                 0x12:'opm_timer_b',0x14:'opm_timer_control',0x18:'opm_lfo_rate',
                 0x19:'opm_modulation_depth',0x1b:'opm_lfo_wave'}.get(register,'opm_shared_parameter')
-        elif chip=='opna':
-            from .native_imports.opna import register_channel
-            port=int(command in (0x57,0xa7));channel=register_channel(register,data,port)
+        elif chip in ('opna','opn','opn2'):
+            from importlib import import_module
+            module=import_module('.native_imports.'+chip,__package__)
+            port=int(command in (0x57,0xa7,0x53,0xa3));channel=module.register_channel(register,data,port)
             section='fm' if channel is not None else 'shared'
-            if not port and register<=15:
+            if chip in ('opna','opn') and not port and register<=15:
                 section='ssg';channel=register//2 if register<=5 else register-8 if 8<=register<=10 else None
                 kind=('ssg_period_high' if register&1 else 'ssg_period_low') if register<=5 else {
                     6:'ssg_noise',7:'ssg_mixer',8:'ssg_amplitude',9:'ssg_amplitude',10:'ssg_amplitude',
                     11:'ssg_envelope_low',12:'ssg_envelope_high',13:'ssg_shape'}.get(register,'ssg_io')
-            elif not port and 0x10<=register<=0x1f:
+            elif chip=='opna' and not port and 0x10<=register<=0x1f:
                 section='rhythm';kind=('opna_rhythm_key' if register==0x10 else
                     'opna_rhythm_total_level' if register==0x11 else
                     'opna_rhythm_instrument' if 0x18<=register<=0x1d else 'opna_rhythm_parameter')
+            elif chip=='opn' and module.register_role(register,port)=='uninterpreted':kind='opn_uninterpreted'
+            elif chip=='opn2' and module.register_role(register,port)=='uninterpreted':kind='opn2_uninterpreted'
+            elif chip=='opn2' and not port and register in (0x2a,0x2b):
+                kind='opn2_dac_data' if register==0x2a else 'opn2_dac_enable'
+                section='pcm_dac'
             elif register==0x28 and not port:kind='opna_key'
             elif 0x30<=register<=0x9f:
                 kind=('opna_operator_multiple','fm_operator_level','fm_operator_attack','fm_operator_decay1',
@@ -254,6 +260,8 @@ def encode_control(control, device):
         return bytes((0x30 if device.instance else 0x50,value))
     register=p['register'];value=_value(control)
     if chip=='opm':return bytes((0xa4 if device.instance else 0x54,register,value))
+    if chip=='opn':return bytes((0x55,register,value))
+    if chip=='opn2':return bytes(((0xa2 if device.instance else 0x52)+p['port'],register,value))
     if chip=='opna':return bytes(((0xa6 if device.instance else 0x56)+p['port'],register,value))
     if chip=='opll':return bytes((0xa1 if device.instance else 0x51,register,value))
     if chip=='psg':return bytes((0xa0,register|(device.instance<<7),value))

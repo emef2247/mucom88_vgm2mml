@@ -16,14 +16,14 @@ from .native_music import (NativeDevice, NativeControl, NativeVoice, NativeUnit,
 from .native_registers import decode_control
 
 
-COMMAND_CHIPS = {0x54:'opm',0xa4:'opm',0x56:'opna',0x57:'opna',0xa6:'opna',0xa7:'opna',
+COMMAND_CHIPS = {0x55:'opn',0x52:'opn2',0x53:'opn2',0xa2:'opn2',0xa3:'opn2',0x54:'opm',0xa4:'opm',0x56:'opna',0x57:'opna',0xa6:'opna',0xa7:'opna',
     0x50:'dcsg',0x30:'dcsg',0x4f:'dcsg',0x3f:'dcsg',0xb7:'msm6258',0xb8:'msm6295',
     0xc0:'segapcm',0xd4:'c140',0xa0:'psg',0xd2:'scc',0x51:'opll',0xa1:'opll',0xb9:'huc6280',0xb4:'nesapu'}
 BLOCK_CHIPS = {4:'msm6258',0x44:'msm6258',0x7f:'pcm',0x80:'segapcm',0x81:'opna',0x8b:'msm6295',0x8d:'c140',
                0xc0:'nesapu',0xc1:'nesapu',0xc2:'nesapu'}
-STREAM_CHIPS = {0:'dcsg',1:'opll',3:'opm',4:'segapcm',7:'opna',0x12:'psg',
+STREAM_CHIPS = {0:'dcsg',1:'opll',2:'opn2',6:'opn',3:'opm',4:'segapcm',7:'opna',0x12:'psg',
                 0x17:'msm6258',0x18:'msm6295',0x19:'scc',0x1c:'c140'}
-HEADER_OFFSETS = {'opm':0x30,'opna':0x48,'dcsg':0x0c,'msm6258':0x90,'msm6295':0x98,
+HEADER_OFFSETS = {'opn':0x44,'opn2':0x2c,'opm':0x30,'opna':0x48,'dcsg':0x0c,'msm6258':0x90,'msm6295':0x98,
                   'segapcm':0x38,'c140':0xa8,'psg':0x74,'scc':0x9c,'opll':0x10,'huc6280':0xa4,'nesapu':0x84}
 CARRIERS = (8,8,8,8,12,14,14,15)  # Source register-bank order M1,M2,C1,C2.
 
@@ -35,7 +35,7 @@ def _clock(header, raw, chip):
 
 
 def _chip_instance(command, raw, pos):
-    if command in (0xa4,0xa6,0xa7,0xa1,0x30,0x3f):return 1
+    if command in (0xa4,0xa6,0xa7,0xa2,0xa3,0xa1,0x30,0x3f):return 1
     if command in (0xb7,0xb8,0xa0,0xb9):return raw[pos+1]>>7
     if command==0xc0:return int.from_bytes(raw[pos+1:pos+3],'little')>>15
     if command==0xd4:return raw[pos+1]>>7
@@ -172,7 +172,7 @@ class _Builder:
                     ('source_continuity_ids',tuple(s.continuity_id for s in gate)),
                     ('volume_domain','native_carrier_attenuation'),
                     ('voice_basis','first positive onset state; ordered zero-width setup remains in controls'),
-                    ('channel3_special_observed',chip=='opna' and any(s.state.channel3_special_enabled for s in gate)),
+                    ('channel3_special_observed',chip in ('opna','opn','opn2') and any(s.state.channel3_special_enabled for s in gate)),
                     ('csm_observed',any(s.state.csm_enabled for s in gate)),
                     ('noise_enabled_observed',chip=='opm' and channel==7 and any(s.state.noise_enabled for s in gate)),
                     ('pitch_fraction_reset_assumption',chip=='opm' and any(s.state.kf_raw is None for s in gate)),
@@ -215,7 +215,7 @@ def _fm_pitch(chip,state,clock):
         q=(kc-(kc>>2))*64+((state.kf_raw or 0)>>2)
         return 440*clock/3579545*2**((q/64-56)/12)
     if state.fnum is None or state.block is None:return None
-    return state.fnum*clock*(6/state.fm_prescale_divisor)/(144*2**(20-state.block))
+    return state.fnum*clock*(6/state.fm_prescale_divisor)/(144*2**(21-state.block))
 
 
 def _fm_level(state):
@@ -340,7 +340,7 @@ def _opll(builder):
 
 def _opna_aux(builder):
     for device in list(builder.devices.values()):
-        if device.chip!='opna':continue
+        if device.chip not in ('opna','opn'):continue
         registers={};prescale=6;active={};indices=defaultdict(int);rhythm=[];latest={}
         controls=[c for c in builder.controls if c.device_id==device.device_id]
         def finish(channel,at):
@@ -367,13 +367,14 @@ def _opna_aux(builder):
                 row=active[channel]
                 low=registers.get(2*channel);high=registers.get(2*channel+1)
                 period=None if low is None or high is None else low|((high&15)<<8)
-                hz=device.clock_hz/{6:4,3:2,2:1}[prescale]/(16*max(1,period)) if period is not None else None
+                ssg_divisor={6:4,3:2,2:1}[prescale]/(2 if device.chip=='opn' else 1)
+                hz=device.clock_hz/ssg_divisor/(16*max(1,period)) if period is not None else None
                 _add_curve(row['pitch'],c.sample,hz);_add_curve(row['volume'],c.sample,amplitude&31)
                 identity=builder.voice(device,'ssg',(('tone_enabled',not bool(mixer&(1<<channel))),
                     ('noise_enabled',not bool(mixer&(8<<channel))),('hardware_envelope',bool(amplitude&16)),
                     ('envelope_shape',registers.get(13) if amplitude&16 else None)))
                 _add_curve(row['voice'],c.sample,identity)
-            if register==0x10:
+            if device.chip=='opna' and register==0x10:
                 for i,family in enumerate(('BD','SD','CYM','HH','TOM','RIM')):
                     if not value&(1<<i):continue
                     if value&128:
@@ -439,7 +440,7 @@ def build_native_performance(source,outdir,stem=None,legacy_performances=(),lega
     if any(e.command==0xb4 for e in bundle['events']):
         from .native_nesapu import add_units
         add_units(builder,root,stem)
-    for chip in ('opm','opna'):builder.fm(chip)
+    for chip in ('opm','opna','opn','opn2'):builder.fm(chip)
     builder.dcsg()
     performances,_=_legacy_performances(bundle,root,stem,legacy_performances,legacy_opll_segments,bundle['raw'])
     _legacy_units(builder,performances);_opll(builder);_opna_aux(builder)
